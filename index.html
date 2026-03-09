@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat Keeper Pro</title>
+    <link rel="manifest" href="manifest.json">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 10px; }
+        .chat-user { background: #374151; align-self: flex-end; border-radius: 15px 15px 0 15px; }
+        .chat-assistant { background: #065f46; align-self: flex-start; border-radius: 15px 15px 15px 0; }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-100 font-sans min-h-screen flex flex-col">
+
+    <header class="border-b border-gray-800 p-4 flex justify-between items-center bg-gray-900 sticky top-0 z-50">
+        <div class="flex items-center gap-2">
+            <i data-lucide="database" class="text-violet-500"></i>
+            <h1 class="text-xl font-bold tracking-tight">Chat Keeper <span class="text-xs text-violet-400 font-mono">v2.0</span></h1>
+        </div>
+        <div class="flex gap-4 items-center">
+            <button id="installBtn" class="hidden bg-violet-600 hover:bg-violet-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition">Install App</button>
+            <input type="file" id="fileInput" class="hidden" accept=".json">
+            <button onclick="document.getElementById('fileInput').click()" class="bg-gray-800 hover:bg-gray-700 px-4 py-2 rounded-lg text-sm border border-gray-700 flex items-center gap-2">
+                <i data-lucide="upload-cloud" class="w-4"></i> Import JSON
+            </button>
+        </div>
+    </header>
+
+    <div class="flex flex-1 overflow-hidden">
+        <aside class="w-64 border-r border-gray-800 p-4 hidden md:flex flex-col gap-6">
+            <nav class="space-y-2">
+                <button onclick="setView('library')" class="w-full flex items-center gap-3 px-3 py-2 rounded-md bg-gray-800 text-white">
+                    <i data-lucide="layout-grid" class="w-4"></i> Library
+                </button>
+                <button onclick="setView('collections')" class="w-full flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-800 text-gray-400 hover:text-white transition">
+                    <i data-lucide="star" class="w-4 text-yellow-500"></i> Collections
+                </button>
+            </nav>
+            
+            <div class="mt-auto p-4 bg-gray-800/50 rounded-xl border border-gray-700">
+                <p class="text-xs text-gray-400 uppercase font-bold mb-2 tracking-wider">Storage Status</p>
+                <div id="dbStatus" class="text-sm text-green-400 flex items-center gap-2">
+                    <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span> Local DB Ready
+                </div>
+            </div>
+        </aside>
+
+        <main class="flex-1 flex flex-col min-w-0">
+            <div class="p-4 border-b border-gray-800 bg-gray-900/50 backdrop-blur flex flex-wrap gap-4">
+                <div class="relative flex-1 min-w-[200px]">
+                    <i data-lucide="search" class="absolute left-3 top-2.5 w-4 text-gray-500"></i>
+                    <input type="text" id="searchInput" placeholder="Search conversations..." class="w-full bg-gray-800 border border-gray-700 rounded-lg py-2 pl-10 pr-4 focus:outline-none focus:border-violet-500 transition">
+                </div>
+                <button onclick="exportSelected()" class="bg-gray-800 hover:bg-gray-700 p-2 rounded-lg border border-gray-700" title="Export Selected">
+                    <i data-lucide="download" class="w-5 text-violet-400"></i>
+                </button>
+            </div>
+
+            <div id="chatGrid" class="flex-1 overflow-y-auto p-6 grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6 custom-scrollbar">
+                <div class="col-span-full text-center py-20 text-gray-500">
+                    <i data-lucide="inbox" class="w-12 h-12 mx-auto mb-4 opacity-20"></i>
+                    <p>No conversations loaded. Import your ChatGPT export to begin.</p>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div id="detailModal" class="fixed inset-0 bg-black/80 z-[100] hidden flex items-center justify-center p-4">
+        <div class="bg-gray-900 border border-gray-700 w-full max-w-4xl h-[85vh] rounded-2xl flex flex-col overflow-hidden">
+            <header class="p-4 border-b border-gray-800 flex justify-between items-center bg-gray-800/50">
+                <h2 id="modalTitle" class="font-bold truncate pr-4">Conversation Detail</h2>
+                <div class="flex items-center gap-3">
+                    <button id="modalStar" class="p-2 hover:bg-gray-700 rounded-full"><i data-lucide="star" class="w-5"></i></button>
+                    <button onclick="closeModal()" class="p-2 hover:bg-red-900/30 text-gray-400 hover:text-red-500 rounded-full transition"><i data-lucide="x" class="w-6"></i></button>
+                </div>
+            </header>
+            <div id="modalTranscript" class="flex-1 overflow-y-auto p-6 flex flex-col gap-4 custom-scrollbar"></div>
+        </div>
+    </div>
+
+    <script>
+        let db;
+        let allChats = [];
+        let deferredPrompt;
+        let currentView = 'library';
+
+        // 1. IndexedDB Initialization
+        const request = indexedDB.open("ChatKeeperDB", 1);
+        request.onupgradeneeded = e => {
+            db = e.target.result;
+            db.createObjectStore("starred", { keyPath: "id" });
+        };
+        request.onsuccess = e => db = e.target.result;
+
+        // 2. PWA Install Logic
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            document.getElementById('installBtn').classList.remove('hidden');
+        });
+
+        document.getElementById('installBtn').onclick = async () => {
+            if (deferredPrompt) {
+                deferredPrompt.prompt();
+                const { outcome } = await deferredPrompt.userChoice;
+                if (outcome === 'accepted') document.getElementById('installBtn').classList.add('hidden');
+            }
+        };
+
+        // 3. Parser & Analysis Logic
+        document.getElementById('fileInput').onchange = async (e) => {
+            const file = e.target.files[0];
+            const text = await file.text();
+            const rawData = JSON.parse(text);
+            
+            allChats = rawData.map(chat => {
+                const messages = Object.values(chat.mapping || {}).filter(m => m.message);
+                const fullText = messages.map(m => m.message.content.parts.join(' ')).join(' ');
+                
+                // Metadata Enrichment
+                const wordCount = fullText.split(' ').length;
+                const interactionMode = messages.filter(m => m.message.author.role === 'user').length > 2 ? 'Discussion' : 'Question';
+                
+                // Simple Sentiment Analysis
+                const pos = (fullText.match(/helpful|thanks|great|good|yes|awesome/gi) || []).length;
+                const neg = (fullText.match(/error|bad|wrong|no|fail|issue/gi) || []).length;
+                const tone = pos > neg ? 'Positive' : neg > pos ? 'Negative' : 'Neutral';
+
+                return {
+                    id: chat.id,
+                    title: chat.title || "Untitled Conversation",
+                    date: new Date(chat.create_time * 1000).toLocaleDateString(),
+                    rawDate: chat.create_time,
+                    wordCount,
+                    interactionMode,
+                    tone,
+                    messages: messages.map(m => ({
+                        role: m.message.author.role,
+                        text: m.message.content.parts.join(' '),
+                        model: m.message.metadata.model_slug || 'Default'
+                    }))
+                };
+            });
+            renderGrid();
+        };
+
+        // 4. UI Rendering
+        function renderGrid() {
+            const grid = document.getElementById('chatGrid');
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            
+            const filtered = allChats.filter(chat => {
+                const matchesSearch = chat.title.toLowerCase().includes(searchTerm);
+                return matchesSearch;
+            });
+
+            grid.innerHTML = filtered.map(chat => `
+                <div class="bg-gray-800 border border-gray-700 rounded-xl p-5 hover:border-violet-500 transition-all group relative">
+                    <div class="flex justify-between items-start mb-3">
+                        <span class="text-xs font-mono text-violet-400 bg-violet-400/10 px-2 py-1 rounded">${chat.interactionMode}</span>
+                        <button onclick="toggleStar('${chat.id}')" class="text-gray-500 hover:text-yellow-500">
+                            <i data-lucide="star" class="w-5"></i>
+                        </button>
+                    </div>
+                    <h3 class="font-bold text-lg mb-2 truncate">${chat.title}</h3>
+                    <p class="text-sm text-gray-400 line-clamp-2 mb-4 italic">"${chat.messages[0]?.text || ''}"</p>
+                    <div class="flex items-center justify-between mt-auto pt-4 border-t border-gray-700/50">
+                        <span class="text-xs text-gray-500">${chat.date}</span>
+                        <button onclick="viewDetail('${chat.id}')" class="text-sm text-violet-400 font-bold hover:underline">View Chat →</button>
+                    </div>
+                </div>
+            `).join('');
+            lucide.createIcons();
+        }
+
+        function viewDetail(id) {
+            const chat = allChats.find(c => c.id === id);
+            const modal = document.getElementById('detailModal');
+            const transcript = document.getElementById('modalTranscript');
+            
+            document.getElementById('modalTitle').innerText = chat.title;
+            transcript.innerHTML = chat.messages.map(m => `
+                <div class="max-w-[80%] p-4 ${m.role === 'user' ? 'chat-user' : 'chat-assistant'}">
+                    <p class="text-[10px] uppercase font-bold opacity-50 mb-1">${m.role}</p>
+                    <p class="text-sm leading-relaxed">${m.text}</p>
+                </div>
+            `).join('');
+            
+            modal.classList.remove('hidden');
+        }
+
+        function closeModal() {
+            document.getElementById('detailModal').classList.add('hidden');
+        }
+
+        // Search Listener
+        document.getElementById('searchInput').addEventListener('input', renderGrid);
+
+        // Initial Icon Load
+        lucide.createIcons();
+        
+        // Service Worker Registration
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js');
+        }
+    </script>
+</body>
+</html>
