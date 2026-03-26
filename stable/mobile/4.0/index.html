@@ -2,27 +2,80 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chat Keeper Pro v3.0</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Chat Keeper Pro v3.1</title>
     <link rel="manifest" href="manifest.json">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap');
         :root { --accent: #8b5cf6; --accent-hover: #7c3aed; }
-        body { font-family: 'Inter', sans-serif; background: #0b0f1a; color: #e5e7eb; }
+        body { font-family: 'Inter', sans-serif; background: #0b0f1a; color: #e5e7eb; -webkit-tap-highlight-color: transparent; }
         .mono { font-family: 'Fira Code', monospace; }
-        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #374151; border-radius: 10px; }
-        .chat-user { background: #1e293b; align-self: flex-end; border-radius: 1.25rem 1.25rem 0.25rem 1.25rem; border: 1px solid #334155; }
-        .chat-assistant { background: #064e3b; align-self: flex-start; border-radius: 1.25rem 1.25rem 1.25rem 0.25rem; border: 1px solid #065f46; }
+        
+        .chat-user { background: #1e293b; border-radius: 1.25rem 1.25rem 0.25rem 1.25rem; border: 1px solid #334155; }
+        .chat-assistant { background: #064e3b; border-radius: 1.25rem 1.25rem 1.25rem 0.25rem; border: 1px solid #065f46; }
+        
+        .nav-drawer { transform: translateX(-100%); transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+        .nav-drawer.open { transform: translateX(0); }
+        
         .animate-in { animation: fadeIn 0.3s ease-out forwards; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        .grid-view { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1.5rem; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        
+        .grid-view { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1rem; }
     </style>
 </head>
-<body class="min-h-screen flex flex-col selection:bg-violet-500/30">
+<body class="min-h-screen flex flex-col overflow-hidden selection:bg-violet-500/30">
+
+    <!-- NAVIGATION DRAWER (Mobile & Desktop) -->
+    <div id="navOverlay" onclick="toggleMenu()" class="fixed inset-0 bg-black/60 z-[100] hidden backdrop-blur-sm transition-opacity"></div>
+    <aside id="navDrawer" class="nav-drawer fixed top-0 left-0 h-full w-72 bg-[#0b0f1a] border-r border-gray-800 z-[101] p-6 flex flex-col gap-6 shadow-2xl">
+        <div class="flex items-center justify-between mb-2">
+            <div class="flex items-center gap-3">
+                <div class="bg-violet-600 p-1.5 rounded-lg"><i data-lucide="database" class="w-5 h-5 text-white"></i></div>
+                <h1 class="text-lg font-bold">Menu</h1>
+            </div>
+            <button onclick="toggleMenu()" class="p-2 hover:bg-gray-800 rounded-xl transition text-gray-500"><i data-lucide="x" class="w-5"></i></button>
+        </div>
+
+        <nav class="space-y-2">
+            <button onclick="setView('library')" id="nav-library" class="w-full flex items-center justify-between px-4 py-3 rounded-2xl transition-all group hover:bg-violet-600/10">
+                <div class="flex items-center gap-4">
+                    <i data-lucide="layers" class="w-5 text-gray-400 group-hover:text-violet-400"></i>
+                    <span class="font-semibold">Full Library</span>
+                </div>
+                <span id="count-library" class="text-[10px] mono text-gray-500">0</span>
+            </button>
+            <button onclick="setView('collections')" id="nav-collections" class="w-full flex items-center justify-between px-4 py-3 rounded-2xl transition-all group hover:bg-violet-600/10">
+                <div class="flex items-center gap-4">
+                    <i data-lucide="star" class="w-5 text-yellow-500/80 group-hover:text-yellow-400"></i>
+                    <span class="font-semibold">Starred</span>
+                </div>
+                <span id="count-starred" class="text-[10px] mono text-gray-500">0</span>
+            </button>
+            <button onclick="setView('timeline')" id="nav-timeline" class="w-full flex items-center px-4 py-3 rounded-2xl transition-all group hover:bg-violet-600/10">
+                <div class="flex items-center gap-4">
+                    <i data-lucide="calendar" class="w-5 text-gray-400 group-hover:text-violet-400"></i>
+                    <span class="font-semibold">Timeline</span>
+                </div>
+            </button>
+        </nav>
+
+        <div class="mt-auto border-t border-gray-800 pt-6 space-y-4">
+            <div class="p-4 bg-gray-900/50 rounded-2xl border border-gray-800">
+                <p class="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Status</p>
+                <div class="flex items-center gap-2">
+                    <div class="w-2 h-2 rounded-full bg-emerald-500"></div>
+                    <span class="text-xs text-gray-300">Local Engine Active</span>
+                </div>
+            </div>
+            <button onclick="resetLicense()" class="w-full flex items-center gap-4 px-4 py-3 text-red-500 hover:bg-red-500/10 rounded-2xl transition font-semibold">
+                <i data-lucide="log-out" class="w-5"></i> Close Vault
+            </button>
+        </div>
+    </aside>
 
     <!-- LOCK SCREEN -->
     <div id="lock-screen" class="fixed inset-0 bg-[#0b0f1a] flex items-center justify-center p-6 z-[9999] text-center">
@@ -31,122 +84,80 @@
                 <i data-lucide="shield-check" class="w-12 h-12 text-violet-500"></i>
             </div>
             <div>
-                <h1 id="lock-title" class="text-4xl font-black text-white mb-3 tracking-tight">Vault Locked</h1>
-                <p id="lock-msg" class="text-gray-400 text-lg">Enter master key <span class="text-violet-400 font-bold">222</span></p>
+                <h1 class="text-4xl font-black text-white mb-3 tracking-tight">Vault Locked</h1>
+                <p class="text-gray-400 text-lg">Enter master key <span class="text-violet-400 font-bold">222</span></p>
             </div>
             <div class="space-y-4">
-                <input type="text" id="keyInput" placeholder="CK-XXXX" class="w-full bg-gray-900 border border-gray-800 rounded-2xl px-6 py-4 text-center text-2xl font-mono focus:border-violet-500 outline-none transition shadow-2xl">
-                <button onclick="activateKey()" class="w-full bg-violet-600 hover:bg-violet-700 py-4 rounded-2xl font-bold text-lg shadow-lg active:scale-[0.98] transition-all">Unlock v3.0 Archive</button>
+                <input type="text" id="keyInput" placeholder="CK-XXXX" class="w-full bg-gray-900 border border-gray-800 rounded-2xl px-6 py-4 text-center text-2xl font-mono focus:border-violet-500 outline-none transition">
+                <button onclick="activateKey()" class="w-full bg-violet-600 hover:bg-violet-700 py-4 rounded-2xl font-bold text-lg shadow-lg transition-all active:scale-95">Unlock v3.1</button>
             </div>
         </div>
     </div>
 
-    <!-- MAIN APP -->
+    <!-- MAIN APP CONTENT -->
     <div id="app-content" class="flex flex-col h-screen overflow-hidden hidden">
-        <header class="h-16 border-b border-gray-800/60 px-6 flex justify-between items-center bg-[#0b0f1a]/80 backdrop-blur-md sticky top-0 z-50">
+        <header class="h-16 border-b border-gray-800/60 px-4 md:px-6 flex justify-between items-center bg-[#0b0f1a]/90 backdrop-blur-md sticky top-0 z-50">
             <div class="flex items-center gap-3">
-                <div class="bg-violet-600 p-1.5 rounded-lg"><i data-lucide="database" class="w-5 h-5 text-white"></i></div>
-                <h1 class="text-lg font-bold">Chat Keeper <span class="bg-violet-500/10 text-violet-400 text-[10px] px-2 py-0.5 rounded-full border border-violet-500/20 mono ml-2">v3.0 PRO</span></h1>
-            </div>
-            <div class="flex gap-3 items-center">
-                <button id="installBtn" class="hidden bg-gray-800 hover:bg-gray-700 text-white px-4 py-2 rounded-xl text-sm font-semibold transition border border-gray-700">Install PWA</button>
-                <input type="file" id="fileInput" class="hidden" accept=".json">
-                <button onclick="document.getElementById('fileInput').click()" class="bg-violet-600 hover:bg-violet-700 px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition shadow-lg shadow-violet-900/20">
-                    <i data-lucide="plus-circle" class="w-4"></i> Import Archive
+                <button onclick="toggleMenu()" class="p-2 hover:bg-gray-800 rounded-xl transition text-gray-400 group">
+                    <i data-lucide="menu" class="w-6 group-active:scale-90 transition"></i>
                 </button>
-                <button onclick="resetLicense()" class="p-2 text-gray-500 hover:text-red-500 transition" title="Logout/Lock">
-                    <i data-lucide="log-out" class="w-4"></i>
+                <h1 id="viewTitle" class="text-lg font-bold tracking-tight ml-1">Library</h1>
+            </div>
+            <div class="flex gap-2 items-center">
+                <input type="file" id="fileInput" class="hidden" accept=".json">
+                <button onclick="document.getElementById('fileInput').click()" class="bg-violet-600 hover:bg-violet-700 p-2.5 rounded-xl transition shadow-lg shadow-violet-900/20 active:scale-90" title="Import JSON">
+                    <i data-lucide="plus" class="w-5 text-white"></i>
                 </button>
             </div>
         </header>
 
-        <div class="flex flex-1 overflow-hidden">
-            <!-- Navigation Sidebar -->
-            <aside class="w-64 border-r border-gray-800/60 p-4 hidden md:flex flex-col gap-2 bg-[#0b0f1a]">
-                <div class="px-3 mb-4">
-                    <p class="text-[10px] font-bold text-gray-500 uppercase tracking-[0.2em]">Navigator</p>
+        <main class="flex-1 flex flex-col min-w-0 bg-[#0d121f] overflow-hidden">
+            <!-- Search & Filter Bar -->
+            <div class="p-4 border-b border-gray-800/60 flex items-center gap-3 bg-[#0b0f1a]/40">
+                <div class="relative flex-1">
+                    <i data-lucide="search" class="absolute left-4 top-3.5 w-4 text-gray-500"></i>
+                    <input type="text" id="searchInput" placeholder="Search archive..." 
+                        class="w-full bg-gray-900/80 border border-gray-800 rounded-2xl py-3 pl-11 pr-4 focus:outline-none focus:border-violet-500 transition shadow-inner text-sm">
                 </div>
-                <nav class="space-y-1 flex-1">
-                    <button onclick="setView('library')" id="nav-library" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition-all group hover:bg-gray-800/50">
-                        <div class="flex items-center gap-3">
-                            <i data-lucide="layers" class="w-4 text-gray-400 group-hover:text-violet-400"></i>
-                            <span class="text-sm font-medium">Library</span>
-                        </div>
-                        <span id="count-library" class="text-[10px] text-gray-500 mono">0</span>
+                <div class="relative">
+                    <button onclick="toggleExportMenu()" class="bg-gray-900 hover:bg-gray-800 p-3 rounded-xl border border-gray-800 group transition">
+                        <i data-lucide="download" class="w-5 text-violet-400"></i>
                     </button>
-                    <button onclick="setView('collections')" id="nav-collections" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition-all group hover:bg-gray-800/50">
-                        <div class="flex items-center gap-3">
-                            <i data-lucide="star" class="w-4 text-yellow-500/80 group-hover:text-yellow-400"></i>
-                            <span class="text-sm font-medium">Starred</span>
-                        </div>
-                        <span id="count-starred" class="text-[10px] text-gray-500 mono">0</span>
-                    </button>
-                    <button onclick="setView('timeline')" id="nav-timeline" class="w-full flex items-center px-3 py-2.5 rounded-xl transition-all group hover:bg-gray-800/50">
-                        <div class="flex items-center gap-3">
-                            <i data-lucide="calendar" class="w-4 text-gray-400 group-hover:text-violet-400"></i>
-                            <span class="text-sm font-medium">Timeline</span>
-                        </div>
-                    </button>
-                </nav>
-            </aside>
-
-            <!-- Main Workspace -->
-            <main class="flex-1 flex flex-col min-w-0 bg-[#0d121f]">
-                <div class="p-4 border-b border-gray-800/60 flex flex-col gap-4 bg-[#0b0f1a]/40">
-                    <div class="flex items-center gap-3">
-                        <!-- Restored Large Search Input -->
-                        <div class="relative flex-1">
-                            <i data-lucide="search" class="absolute left-4 top-3.5 w-4 text-gray-500"></i>
-                            <input type="text" id="searchInput" placeholder="Search archive (supports regex, model names, titles)..." 
-                                class="w-full bg-gray-900 border border-gray-800 rounded-2xl py-3 pl-11 pr-4 focus:outline-none focus:border-violet-500 transition shadow-inner">
-                        </div>
-                        
-                        <!-- Export Tool -->
-                        <div class="relative">
-                            <button onclick="toggleExportMenu()" class="bg-gray-900 hover:bg-gray-800 p-3 rounded-xl border border-gray-800 group transition" title="Export Current View">
-                                <i data-lucide="download" class="w-5 text-violet-400 group-hover:scale-110 transition"></i>
-                            </button>
-                            <!-- Export Dropdown -->
-                            <div id="exportMenu" class="hidden absolute right-0 top-full mt-2 w-52 bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl overflow-hidden z-[100] animate-in">
-                                <div class="px-4 py-2 bg-gray-800/50 text-[10px] font-bold text-gray-500 uppercase tracking-widest border-b border-gray-800">Choose Format</div>
-                                <button onclick="exportAs('json')" class="w-full text-left px-4 py-3 text-xs hover:bg-violet-600/20 flex items-center gap-3 border-b border-gray-800/50 transition"><i data-lucide="file-json" class="w-3"></i> Archive (JSON)</button>
-                                <button onclick="exportAs('txt')" class="w-full text-left px-4 py-3 text-xs hover:bg-violet-600/20 flex items-center gap-3 border-b border-gray-800/50 transition"><i data-lucide="file-text" class="w-3"></i> Readable (TXT)</button>
-                                <button onclick="exportAs('md')" class="w-full text-left px-4 py-3 text-xs hover:bg-violet-600/20 flex items-center gap-3 transition"><i data-lucide="book-open" class="w-3"></i> NotebookLM (MD)</button>
-                            </div>
-                        </div>
+                    <div id="exportMenu" class="hidden absolute right-0 top-full mt-2 w-56 bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl overflow-hidden z-[100] animate-in">
+                        <div class="px-4 py-2 bg-gray-800/50 text-[10px] font-bold text-gray-500 uppercase tracking-widest border-b border-gray-800">Export Options</div>
+                        <button onclick="exportAs('json')" class="w-full text-left px-4 py-3 text-xs hover:bg-violet-600/20 flex items-center gap-3 border-b border-gray-800/50 transition"><i data-lucide="file-json" class="w-3"></i> Archive (JSON)</button>
+                        <button onclick="exportAs('txt')" class="w-full text-left px-4 py-3 text-xs hover:bg-violet-600/20 flex items-center gap-3 border-b border-gray-800/50 transition"><i data-lucide="file-text" class="w-3"></i> Readable (TXT)</button>
+                        <button onclick="exportAs('md')" class="w-full text-left px-4 py-3 text-xs hover:bg-violet-600/20 flex items-center gap-3 transition"><i data-lucide="book-open" class="w-3"></i> NotebookLM (MD)</button>
                     </div>
                 </div>
+            </div>
 
-                <div id="contentArea" class="flex-1 overflow-y-auto p-6 custom-scrollbar">
-                    <div id="chatGrid" class="grid-view"></div>
-                </div>
-            </main>
-        </div>
+            <!-- Scrollable Content Area -->
+            <div id="contentArea" class="flex-1 overflow-y-auto p-4 md:p-6 custom-scrollbar bg-[#0d121f]">
+                <div id="chatGrid" class="grid-view"></div>
+            </div>
+        </main>
     </div>
 
     <!-- DETAIL MODAL -->
-    <div id="detailModal" class="fixed inset-0 bg-black/95 z-[100] hidden flex items-center justify-center p-4 backdrop-blur-md">
-        <div class="bg-[#0b0f1a] border border-gray-800 w-full max-w-5xl h-[85vh] rounded-3xl flex flex-col overflow-hidden shadow-2xl animate-in">
-            <header class="p-4 border-b border-gray-800 flex justify-between items-center bg-gray-900/50">
-                <div class="flex flex-col min-w-0 pr-4">
-                    <h2 id="modalTitle" class="font-bold truncate text-xl">Conversation Detail</h2>
-                </div>
-                <div class="flex items-center gap-2">
-                    <button onclick="reviveConversation()" class="p-2.5 bg-violet-500/10 hover:bg-violet-500/20 text-violet-400 rounded-xl transition" title="Copy Context">
-                        <i data-lucide="refresh-cw" class="w-4"></i>
-                    </button>
-                    <button id="modalStarBtn" class="p-2.5 hover:bg-gray-800 rounded-xl transition"><i data-lucide="star" class="w-4"></i></button>
-                    <button onclick="closeModal()" class="p-2.5 hover:bg-red-500/10 text-gray-400 hover:text-red-500 rounded-xl transition"><i data-lucide="x" class="w-5"></i></button>
+    <div id="detailModal" class="fixed inset-0 bg-black/95 z-[200] hidden flex items-center justify-center backdrop-blur-md">
+        <div class="bg-[#0b0f1a] w-full h-full md:w-[95%] md:h-[95%] md:rounded-3xl flex flex-col overflow-hidden shadow-2xl animate-in">
+            <header class="h-16 border-b border-gray-800 flex justify-between items-center bg-gray-900/50 px-4 md:px-6">
+                <h2 id="modalTitle" class="font-bold truncate text-base md:text-xl pr-4">Conversation</h2>
+                <div class="flex items-center gap-1 md:gap-3">
+                    <button onclick="copyFullChat()" class="p-2.5 text-violet-400 hover:bg-violet-500/10 rounded-xl transition" title="Copy Context"><i data-lucide="copy" class="w-5"></i></button>
+                    <button id="modalStarBtn" class="p-2.5 hover:bg-gray-800 rounded-xl transition"><i data-lucide="star" class="w-5"></i></button>
+                    <button onclick="closeModal()" class="p-2.5 text-gray-500 hover:text-red-500 transition"><i data-lucide="x" class="w-6"></i></button>
                 </div>
             </header>
-            <div id="modalTranscript" class="flex-1 overflow-y-auto p-8 flex flex-col gap-6 custom-scrollbar bg-gray-900/20"></div>
+            <div id="modalTranscript" class="flex-1 overflow-y-auto p-4 md:p-8 flex flex-col gap-6 custom-scrollbar bg-gray-900/20"></div>
         </div>
     </div>
 
-    <div id="toast" class="fixed bottom-8 left-1/2 -translate-x-1/2 px-6 py-3 bg-violet-600 text-white rounded-2xl shadow-2xl transition-all opacity-0 translate-y-10 z-[200] pointer-events-none font-medium text-sm"></div>
+    <div id="toast" class="fixed bottom-10 left-1/2 -translate-x-1/2 px-6 py-3 bg-violet-600 text-white rounded-2xl shadow-2xl transition-all opacity-0 translate-y-10 z-[300] pointer-events-none font-medium text-sm"></div>
 
     <script>
-        let db, allChats = [], starredIds = new Set(), activeChatId = null, currentView = 'library';
+        let db, allChats = [], starredIds = new Set(), activeChatId = null, currentView = 'library', isMenuOpen = false;
 
         const initDB = () => new Promise(r => {
             const req = indexedDB.open("ChatKeeperV3", 1);
@@ -167,8 +178,7 @@
         }
 
         async function activateKey() {
-            const input = document.getElementById('keyInput').value.trim();
-            if (input === '222') {
+            if (document.getElementById('keyInput').value.trim() === '222') {
                 localStorage.setItem('ck_v3_key', '222');
                 document.getElementById('lock-screen').classList.add('hidden');
                 document.getElementById('app-content').classList.remove('hidden');
@@ -176,50 +186,135 @@
             }
         }
 
+        function toggleMenu() {
+            isMenuOpen = !isMenuOpen;
+            const drawer = document.getElementById('navDrawer');
+            const overlay = document.getElementById('navOverlay');
+            if (isMenuOpen) {
+                drawer.classList.add('open');
+                overlay.classList.remove('hidden');
+            } else {
+                drawer.classList.remove('open');
+                overlay.classList.add('hidden');
+            }
+        }
+
+        function setView(v) {
+            currentView = v;
+            document.getElementById('viewTitle').innerText = v.charAt(0).toUpperCase() + v.slice(1);
+            if (isMenuOpen) toggleMenu();
+            updateUI();
+        }
+
         document.getElementById('fileInput').onchange = async e => {
             const file = e.target.files[0];
             if (!file) return;
-            showToast("Processing archive...");
+            showToast("Parsing archive...");
             const text = await file.text();
             try {
                 const raw = JSON.parse(text);
                 const processed = raw.map(c => ({
-                    id: c.id, title: c.title || "Untitled", date: new Date(c.create_time * 1000).toLocaleDateString(),
+                    id: c.id, 
+                    title: c.title || "Untitled", 
+                    date: new Date(c.create_time * 1000).toLocaleDateString(),
                     rawDate: c.create_time,
                     messages: Object.values(c.mapping || {}).filter(m => m.message?.content?.parts).map(m => ({
-                        role: m.message.author.role, text: m.message.content.parts.join('\n')
+                        role: m.message.author.role, 
+                        text: m.message.content.parts.join('\n')
                     }))
                 })).filter(c => c.messages.length > 0);
                 const tx = db.transaction("archive", "readwrite");
                 processed.forEach(c => tx.objectStore("archive").put(c));
-                showToast(`Imported ${processed.length} chats`);
+                showToast(`Loaded ${processed.length} conversations`);
                 loadData();
-            } catch (err) { showToast("Invalid JSON file", "error"); }
+            } catch (err) { showToast("Invalid JSON format", "error"); }
         };
+
+        function updateUI() {
+            const query = document.getElementById('searchInput').value.toLowerCase();
+            let filtered = [...allChats];
+            
+            if (currentView === 'collections') filtered = filtered.filter(c => starredIds.has(c.id));
+            
+            if (query) {
+                filtered = filtered.filter(c => 
+                    c.title.toLowerCase().includes(query) || 
+                    c.messages.some(m => m.text.toLowerCase().includes(query))
+                );
+            }
+
+            document.getElementById('count-library').innerText = allChats.length;
+            document.getElementById('count-starred').innerText = starredIds.size;
+
+            if (currentView === 'timeline') {
+                renderTimeline(filtered);
+            } else {
+                renderGrid(filtered);
+            }
+        }
 
         function renderGrid(chats) {
             const grid = document.getElementById('chatGrid');
             if (chats.length === 0) {
-                grid.innerHTML = `<div class="col-span-full py-20 text-center text-gray-600"><p>No matching conversations found.</p></div>`;
+                grid.innerHTML = `<div class="col-span-full py-20 text-center text-gray-600"><p>Archive is empty or no matches found.</p></div>`;
                 return;
             }
             grid.innerHTML = chats.map(c => `
-                <div class="bg-gray-900/40 border ${starredIds.has(c.id) ? 'border-yellow-500/30' : 'border-gray-800'} rounded-2xl p-5 hover:border-violet-500/50 hover:bg-gray-800/40 transition-all flex flex-col group animate-in relative">
+                <div class="bg-gray-900/40 border ${starredIds.has(c.id) ? 'border-yellow-500/30 shadow-[0_0_15px_rgba(234,179,8,0.05)]' : 'border-gray-800'} rounded-2xl p-5 hover:border-violet-500/50 hover:bg-gray-800/40 transition-all flex flex-col group animate-in">
                     <div class="flex justify-between items-start mb-3">
                         <span class="text-[9px] font-black tracking-widest uppercase text-violet-400 bg-violet-400/5 px-2 py-1 rounded-md border border-violet-500/10">
                             ${c.messages.length} MSGS
                         </span>
-                        <button onclick="event.stopPropagation(); toggleStar('${c.id}')" class="p-1 hover:scale-110 transition">
+                        <button onclick="event.stopPropagation(); toggleStar('${c.id}')" class="p-2 -m-2 hover:scale-110 transition active:scale-90">
                             <i data-lucide="star" class="w-4 ${starredIds.has(c.id) ? 'fill-yellow-500 text-yellow-500' : 'text-gray-700'}"></i>
                         </button>
                     </div>
-                    <h3 class="font-bold text-base mb-2 truncate text-white group-hover:text-violet-300 transition-colors">${c.title}</h3>
-                    <p class="text-xs text-gray-500 line-clamp-2 italic opacity-70 mb-4">"${c.messages[0]?.text.slice(0, 80)}..."</p>
+                    <h3 class="font-bold text-base mb-2 truncate text-white">${c.title}</h3>
+                    <p class="text-xs text-gray-500 line-clamp-2 italic opacity-70 mb-4">"${c.messages[0]?.text.slice(0, 70)}..."</p>
                     <div class="flex items-center justify-between mt-auto pt-4 border-t border-gray-800/50">
                         <span class="text-[10px] text-gray-600 font-medium mono">${c.date}</span>
-                        <button onclick="viewDetail('${c.id}')" class="text-xs text-violet-400 font-bold hover:text-violet-200 flex items-center gap-1">
+                        <button onclick="viewDetail('${c.id}')" class="text-xs text-violet-400 font-bold hover:text-violet-200 flex items-center gap-1 active:scale-95 transition">
                             Explore <i data-lucide="chevron-right" class="w-3"></i>
                         </button>
+                    </div>
+                </div>
+            `).join('');
+            lucide.createIcons();
+        }
+
+        function renderTimeline(chats) {
+            const grid = document.getElementById('chatGrid');
+            if (chats.length === 0) {
+                grid.innerHTML = `<div class="col-span-full py-20 text-center text-gray-600"><p>No history for this view.</p></div>`;
+                return;
+            }
+
+            const sorted = chats.sort((a, b) => b.rawDate - a.rawDate);
+            const groups = {};
+            sorted.forEach(c => {
+                const d = new Date(c.rawDate * 1000);
+                const key = d.toLocaleString('default', { month: 'long', year: 'numeric' });
+                if (!groups[key]) groups[key] = [];
+                groups[key].push(c);
+            });
+
+            grid.innerHTML = Object.entries(groups).map(([month, items]) => `
+                <div class="col-span-full mb-8">
+                    <div class="flex items-center gap-4 mb-4">
+                        <h2 class="text-sm font-black text-gray-400 uppercase tracking-widest">${month}</h2>
+                        <div class="h-px flex-1 bg-gray-800"></div>
+                        <span class="text-[10px] text-gray-600 mono">${items.length} CHATS</span>
+                    </div>
+                    <div class="space-y-3">
+                        ${items.map(c => `
+                            <div onclick="viewDetail('${c.id}')" class="bg-gray-900/30 border border-gray-800 p-4 rounded-2xl flex items-center justify-between hover:bg-gray-800/40 active:scale-[0.98] transition cursor-pointer">
+                                <div class="min-w-0 pr-4">
+                                    <h4 class="font-bold text-sm text-gray-200 truncate">${c.title}</h4>
+                                    <p class="text-[10px] text-gray-600 mono">${c.date}</p>
+                                </div>
+                                <i data-lucide="chevron-right" class="w-4 text-gray-700"></i>
+                            </div>
+                        `).join('')}
                     </div>
                 </div>
             `).join('');
@@ -241,7 +336,7 @@
             document.getElementById('modalTitle').innerText = c.title;
             document.getElementById('modalTranscript').innerHTML = c.messages.map(m => `
                 <div class="flex flex-col ${m.role === 'user' ? 'items-end' : 'items-start'}">
-                    <div class="max-w-[85%] p-5 ${m.role === 'user' ? 'chat-user' : 'chat-assistant'}">
+                    <div class="max-w-[90%] p-4 md:p-5 ${m.role === 'user' ? 'chat-user' : 'chat-assistant'}">
                         <p class="text-[9px] font-black uppercase tracking-widest opacity-40 mb-2">${m.role}</p>
                         <div class="text-[14px] leading-relaxed whitespace-pre-wrap">${m.text}</div>
                     </div>
@@ -264,8 +359,9 @@
             if (format === 'json') { content = JSON.stringify(data, null, 2); mime = "application/json"; ext = "json"; }
             else {
                 data.forEach(c => {
-                    content += `\n--- ${c.title.toUpperCase()} (${c.date}) ---\n\n`;
-                    c.messages.forEach(m => { content += `${m.role.toUpperCase()}: ${m.text}\n\n`; });
+                    content += `\n# ${c.title.toUpperCase()} (${c.date})\n\n`;
+                    c.messages.forEach(m => { content += `**${m.role.toUpperCase()}**: ${m.text}\n\n`; });
+                    content += `---\n`;
                 });
                 if (format === 'md') ext = "md";
             }
@@ -275,37 +371,14 @@
             a.download = `ChatKeeper_Export_${new Date().toISOString().slice(0,10)}.${ext}`;
             a.click();
             toggleExportMenu();
-            showToast(`Exported ${data.length} chats as ${ext.toUpperCase()}`);
+            showToast(`Exported ${data.length} chats`);
         }
 
-        function setView(v) { 
-            currentView = v; 
-            ['library', 'collections', 'timeline'].forEach(n => {
-                const el = document.getElementById(`nav-${n}`);
-                if (el) el.classList.toggle('bg-violet-600/10', v === n);
-            });
-            updateUI(); 
-        }
-
-        function updateUI() { 
-            let filtered = [...allChats];
-            if (currentView === 'collections') filtered = filtered.filter(c => starredIds.has(c.id));
-            
-            const query = document.getElementById('searchInput').value.toLowerCase();
-            if (query) {
-                filtered = filtered.filter(c => c.title.toLowerCase().includes(query) || c.messages.some(m => m.text.toLowerCase().includes(query)));
-            }
-
-            document.getElementById('count-library').innerText = allChats.length;
-            document.getElementById('count-starred').innerText = starredIds.size;
-            renderGrid(filtered);
-        }
-
-        function reviveConversation() {
+        function copyFullChat() {
             const chat = allChats.find(c => c.id === activeChatId);
-            const context = JSON.stringify({ history: chat.messages.map(m => ({ role: m.role, content: m.text })) });
-            const ta = document.createElement("textarea"); ta.value = context; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
-            showToast("Context copied to clipboard");
+            const text = chat.messages.map(m => `${m.role.toUpperCase()}: ${m.text}`).join('\n\n');
+            const ta = document.createElement("textarea"); ta.value = text; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
+            showToast("Conversation copied!");
         }
 
         function closeModal() { document.getElementById('detailModal').classList.add('hidden'); }
