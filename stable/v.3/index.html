@@ -20,7 +20,6 @@
         .animate-in { animation: fadeIn 0.3s ease-out forwards; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         .grid-view { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1.5rem; }
-        .list-view { display: flex; flex-direction: column; gap: 0.75rem; }
     </style>
 </head>
 <body class="min-h-screen flex flex-col selection:bg-violet-500/30">
@@ -36,7 +35,7 @@
                 <p id="lock-msg" class="text-gray-400 text-lg">Enter master key <span class="text-violet-400">222</span></p>
             </div>
             <div class="space-y-4">
-                <input type="text" id="keyInput" placeholder="CK-XXXX" class="w-full bg-gray-900 border border-gray-800 rounded-2xl px-6 py-4 text-center text-2xl font-mono focus:border-violet-500 outline-none transition">
+                <input type="password" id="keyInput" placeholder="••••" class="w-full bg-gray-900 border border-gray-800 rounded-2xl px-6 py-4 text-center text-2xl font-mono focus:border-violet-500 outline-none transition">
                 <button onclick="activateKey()" class="w-full bg-violet-600 hover:bg-violet-700 py-4 rounded-2xl font-bold text-lg shadow-lg">Unlock v3.0 Archive</button>
             </div>
         </div>
@@ -50,7 +49,6 @@
                 <h1 class="text-lg font-bold">Chat Keeper <span class="text-violet-400 text-[10px] mono ml-2">v3.0 PRO</span></h1>
             </div>
             <div class="flex gap-3 items-center">
-                <button id="installBtn" class="hidden bg-gray-800 px-4 py-2 rounded-xl text-sm border border-gray-700">Install App</button>
                 <input type="file" id="fileInput" class="hidden" accept=".json">
                 <button onclick="document.getElementById('fileInput').click()" class="bg-violet-600 hover:bg-violet-700 px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition">
                     <i data-lucide="plus-circle" class="w-4"></i> Import
@@ -64,14 +62,14 @@
                 <nav class="space-y-1 flex-1">
                     <button onclick="setView('library')" id="nav-library" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-gray-800/50 transition text-sm">
                         <div class="flex items-center gap-3"><i data-lucide="layers" class="w-4"></i> Library</div>
-                        <span id="count-library" class="mono text-[10px]">0</span>
+                        <span id="count-library" class="mono text-[10px] opacity-60">0</span>
                     </button>
                     <button onclick="setView('collections')" id="nav-collections" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-gray-800/50 transition text-sm">
                         <div class="flex items-center gap-3"><i data-lucide="star" class="w-4 text-yellow-500"></i> Starred</div>
-                        <span id="count-starred" class="mono text-[10px]">0</span>
+                        <span id="count-starred" class="mono text-[10px] opacity-60">0</span>
                     </button>
                     <button onclick="setView('timeline')" id="nav-timeline" class="w-full flex items-center px-3 py-2.5 rounded-xl hover:bg-gray-800/50 transition text-sm gap-3">
-                        <i data-lucide="calendar" class="w-4"></i> Timeline
+                        <i data-lucide="calendar" class="w-4 text-blue-400"></i> Timeline
                     </button>
                 </nav>
             </aside>
@@ -85,7 +83,6 @@
                         </div>
                         <button onclick="toggleExportMenu()" class="bg-gray-900 hover:bg-gray-800 p-3 rounded-xl border border-gray-800 relative group">
                             <i data-lucide="download" class="w-5 text-violet-400"></i>
-                            <!-- Export Dropdown -->
                             <div id="exportMenu" class="hidden absolute right-0 top-full mt-2 w-48 bg-gray-900 border border-gray-800 rounded-xl shadow-2xl overflow-hidden z-[100]">
                                 <button onclick="exportAs('json')" class="w-full text-left px-4 py-3 text-xs hover:bg-violet-600/20 border-b border-gray-800">Archive (JSON)</button>
                                 <button onclick="exportAs('txt')" class="w-full text-left px-4 py-3 text-xs hover:bg-violet-600/20 border-b border-gray-800">Readable (TEXT)</button>
@@ -108,7 +105,7 @@
             <header class="p-4 border-b border-gray-800 flex justify-between items-center bg-gray-900/50">
                 <h2 id="modalTitle" class="font-bold truncate text-lg">Detail</h2>
                 <div class="flex items-center gap-2">
-                    <button onclick="reviveConversation()" class="p-2 text-violet-400 hover:bg-violet-500/10 rounded-lg"><i data-lucide="refresh-cw" class="w-4"></i></button>
+                    <button onclick="reviveConversation()" class="p-2 text-violet-400 hover:bg-violet-500/10 rounded-lg" title="Copy to clipboard"><i data-lucide="copy" class="w-4"></i></button>
                     <button id="modalStarBtn" class="p-2 hover:bg-gray-800 rounded-lg"><i data-lucide="star" class="w-4"></i></button>
                     <button onclick="closeModal()" class="p-2 text-gray-500 hover:text-red-500"><i data-lucide="x" class="w-5"></i></button>
                 </div>
@@ -120,67 +117,103 @@
     <div id="toast" class="fixed bottom-8 left-1/2 -translate-x-1/2 px-6 py-3 bg-violet-600 text-white rounded-xl opacity-0 transition-all z-[200]"></div>
 
     <script>
-        let db, allChats = [], starredIds = new Set(), activeChatId = null, deferredPrompt, currentView = 'library';
+        let db, allChats = [], starredIds = new Set(), activeChatId = null, currentView = 'library';
 
-        const initDB = () => new Promise(r => {
+        const initDB = () => new Promise((resolve, reject) => {
             const req = indexedDB.open("ChatKeeperV3", 1);
             req.onupgradeneeded = e => {
                 const d = e.target.result;
-                d.createObjectStore("archive", { keyPath: "id" });
-                d.createObjectStore("meta", { keyPath: "id" });
+                if (!d.objectStoreNames.contains("archive")) d.createObjectStore("archive", { keyPath: "id" });
+                if (!d.objectStoreNames.contains("meta")) d.createObjectStore("meta", { keyPath: "id" });
             };
-            req.onsuccess = e => { db = e.target.result; r(); };
+            req.onsuccess = e => { db = e.target.result; resolve(); };
+            req.onerror = () => reject();
         });
 
         async function loadData() {
+            if (!db) return;
             const tx = db.transaction(["archive", "meta"], "readonly");
-            allChats = await new Promise(r => { const req = tx.objectStore("archive").getAll(); req.onsuccess = () => r(req.result); });
-            const metas = await new Promise(r => { const req = tx.objectStore("meta").getAll(); req.onsuccess = () => r(req.result); });
+            allChats = await new Promise(r => { 
+                const req = tx.objectStore("archive").getAll(); 
+                req.onsuccess = () => r(req.result || []); 
+            });
+            const metas = await new Promise(r => { 
+                const req = tx.objectStore("meta").getAll(); 
+                req.onsuccess = () => r(req.result || []); 
+            });
             starredIds = new Set(metas.filter(m => m.starred).map(m => m.id));
             updateUI();
         }
 
         async function activateKey() {
-            if (document.getElementById('keyInput').value === '222') {
+            const val = document.getElementById('keyInput').value || localStorage.getItem('ck_v3_key');
+            if (val === '222') {
                 localStorage.setItem('ck_v3_key', '222');
                 document.getElementById('lock-screen').classList.add('hidden');
                 document.getElementById('app-content').classList.remove('hidden');
-                await initDB(); await loadData();
+                await initDB(); 
+                await loadData();
+                // Attach search listener after DOM is visible and ready
+                document.getElementById('searchInput').addEventListener('input', updateUI);
             }
         }
 
         document.getElementById('fileInput').onchange = async e => {
-            const text = await e.target.files[0].text();
-            const raw = JSON.parse(text);
-            const processed = raw.map(c => ({
-                id: c.id, title: c.title || "Untitled", date: new Date(c.create_time * 1000).toLocaleDateString(),
-                messages: Object.values(c.mapping || {}).filter(m => m.message?.content?.parts).map(m => ({
-                    role: m.message.author.role, text: m.message.content.parts.join('\n')
-                }))
-            })).filter(c => c.messages.length > 0);
-            const tx = db.transaction("archive", "readwrite");
-            processed.forEach(c => tx.objectStore("archive").put(c));
-            showToast(`Imported ${processed.length} chats`);
-            loadData();
+            if (!e.target.files.length) return;
+            try {
+                const text = await e.target.files[0].text();
+                const raw = JSON.parse(text);
+                const processed = raw.map(c => ({
+                    id: c.id, 
+                    title: c.title || "Untitled", 
+                    date: new Date(c.create_time * 1000).toLocaleDateString(),
+                    messages: Object.values(c.mapping || {}).filter(m => m.message?.content?.parts).map(m => ({
+                        role: m.message.author.role, 
+                        text: (m.message.content.parts || []).join('\n')
+                    }))
+                })).filter(c => c.messages.length > 0);
+
+                const tx = db.transaction("archive", "readwrite");
+                processed.forEach(c => tx.objectStore("archive").put(c));
+                tx.oncomplete = () => {
+                    showToast(`Imported ${processed.length} chats`);
+                    loadData();
+                };
+            } catch (err) {
+                showToast("Error importing file. Check JSON format.");
+            }
         };
 
         function renderGrid(chats) {
-            document.getElementById('chatGrid').innerHTML = chats.map(c => `
-                <div onclick="viewDetail('${c.id}')" class="bg-gray-900/40 border ${starredIds.has(c.id) ? 'border-yellow-500/40' : 'border-gray-800'} p-5 rounded-2xl hover:border-violet-500/50 cursor-pointer transition">
-                    <h3 class="font-bold mb-2 truncate">${c.title}</h3>
-                    <p class="text-xs text-gray-500 line-clamp-2">${c.messages[0]?.text || ''}</p>
+            const grid = document.getElementById('chatGrid');
+            if (!chats.length) {
+                grid.innerHTML = `<div class="col-span-full py-20 text-center text-gray-600">No conversations found.</div>`;
+                return;
+            }
+            grid.innerHTML = chats.map(c => {
+                const isStarred = starredIds.has(c.id);
+                return `
+                <div onclick="viewDetail('${c.id}')" class="group relative bg-gray-900/40 border ${isStarred ? 'border-yellow-500/40' : 'border-gray-800'} p-5 rounded-2xl hover:border-violet-500/50 cursor-pointer transition animate-in">
+                    <div class="flex justify-between items-start mb-2 gap-2">
+                        <h3 class="font-bold truncate flex-1 text-gray-200">${c.title}</h3>
+                        <button onclick="event.stopPropagation(); toggleStar('${c.id}')" class="p-1 -mt-1 -mr-1 rounded-lg hover:bg-gray-800 transition">
+                            <i data-lucide="star" class="w-4 h-4 ${isStarred ? 'fill-yellow-500 text-yellow-500' : 'text-gray-600'}"></i>
+                        </button>
+                    </div>
+                    <p class="text-xs text-gray-500 line-clamp-2">${c.messages[0]?.text || 'No preview available'}</p>
                     <div class="mt-4 pt-3 border-t border-gray-800 text-[10px] text-gray-600 flex justify-between">
                         <span>${c.date}</span>
                         <span>${c.messages.length} messages</span>
                     </div>
                 </div>
-            `).join('');
+            `}).join('');
             lucide.createIcons();
         }
 
         function viewDetail(id) {
             activeChatId = id;
             const c = allChats.find(x => x.id === id);
+            if (!c) return;
             document.getElementById('modalTitle').innerText = c.title;
             document.getElementById('modalTranscript').innerHTML = c.messages.map(m => `
                 <div class="${m.role === 'user' ? 'chat-user' : 'chat-assistant'} p-4 max-w-[90%] text-sm">
@@ -208,24 +241,30 @@
                 starredIds.add(id);
                 store.put({ id, starred: true });
             }
-            updateUI();
+            tx.oncomplete = () => updateUI();
         }
 
         function toggleExportMenu() { document.getElementById('exportMenu').classList.toggle('hidden'); }
 
         function exportAs(format) {
-            const data = allChats.filter(c => currentView !== 'collections' || starredIds.has(c.id));
-            let content = "", mime = "text/plain", ext = "txt";
+            const searchVal = document.getElementById('searchInput').value.toLowerCase();
+            let data = currentView === 'collections' ? allChats.filter(c => starredIds.has(c.id)) : allChats;
+            
+            if (searchVal) {
+                data = data.filter(c => 
+                    c.title.toLowerCase().includes(searchVal) || 
+                    c.messages.some(m => m.text.toLowerCase().includes(searchVal))
+                );
+            }
 
+            let content = "", mime = "text/plain", ext = "txt";
             if (format === 'json') {
                 content = JSON.stringify(data, null, 2);
                 mime = "application/json"; ext = "json";
             } else {
                 data.forEach(c => {
                     content += `\n--- CONVERSATION: ${c.title} (${c.date}) ---\n\n`;
-                    c.messages.forEach(m => {
-                        content += `${m.role.toUpperCase()}: ${m.text}\n\n`;
-                    });
+                    c.messages.forEach(m => { content += `${m.role.toUpperCase()}: ${m.text}\n\n`; });
                 });
                 if (format === 'md') ext = "md";
             }
@@ -233,23 +272,70 @@
             const blob = new Blob([content], { type: mime });
             const a = document.createElement('a');
             a.href = URL.createObjectURL(blob);
-            a.download = `ChatKeeper_V3_Export.${ext}`;
+            a.download = `ChatKeeper_Export_${new Date().getTime()}.${ext}`;
             a.click();
             toggleExportMenu();
         }
 
         function setView(v) { currentView = v; updateUI(); }
+        
         function updateUI() { 
-            const filtered = currentView === 'collections' ? allChats.filter(c => starredIds.has(c.id)) : allChats;
+            const searchInput = document.getElementById('searchInput');
+            const searchVal = searchInput ? searchInput.value.toLowerCase() : "";
+            
+            let filtered = currentView === 'collections' ? allChats.filter(c => starredIds.has(c.id)) : allChats;
+            
+            if (searchVal) {
+                filtered = filtered.filter(c => 
+                    c.title.toLowerCase().includes(searchVal) || 
+                    c.messages.some(m => m.text.toLowerCase().includes(searchVal))
+                );
+            }
+
             document.getElementById('count-library').innerText = allChats.length;
             document.getElementById('count-starred').innerText = starredIds.size;
             renderGrid(filtered);
+            
+            // Highlight active nav
+            ['nav-library', 'nav-collections', 'nav-timeline'].forEach(id => {
+                const btn = document.getElementById(id);
+                if (btn) btn.classList.remove('bg-gray-800/80', 'text-white');
+            });
+            const activeNav = document.getElementById(`nav-${currentView}`);
+            if (activeNav) activeNav.classList.add('bg-gray-800/80', 'text-white');
         }
+
+        function reviveConversation() {
+            const c = allChats.find(x => x.id === activeChatId);
+            if (!c) return;
+            const fullText = c.messages.map(m => `${m.role.toUpperCase()}: ${m.text}`).join('\n\n');
+            const el = document.createElement('textarea');
+            el.value = fullText;
+            document.body.appendChild(el);
+            el.select();
+            document.execCommand('copy');
+            document.body.removeChild(el);
+            showToast("Copied to clipboard");
+        }
+
         function closeModal() { document.getElementById('detailModal').classList.add('hidden'); }
         function resetLicense() { localStorage.clear(); location.reload(); }
-        function showToast(m) { const t = document.getElementById('toast'); t.innerText = m; t.classList.add('opacity-100'); setTimeout(() => t.classList.remove('opacity-100'), 2000); }
+        function showToast(m) { 
+            const t = document.getElementById('toast'); 
+            t.innerText = m; 
+            t.classList.remove('opacity-0');
+            t.classList.add('opacity-100'); 
+            setTimeout(() => {
+                t.classList.remove('opacity-100');
+                t.classList.add('opacity-0');
+            }, 2000); 
+        }
         
-        window.onload = () => { if (localStorage.getItem('ck_v3_key')) activateKey(); lucide.createIcons(); };
+        window.onload = () => { 
+            if (localStorage.getItem('ck_v3_key')) activateKey(); 
+            lucide.createIcons(); 
+        };
     </script>
 </body>
 </html>
+
