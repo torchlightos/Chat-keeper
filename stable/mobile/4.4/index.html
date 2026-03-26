@@ -3,129 +3,152 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Chat Keeper v4.0</title>
+    <title>Chat Keeper v4.4</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Fira+Code&display=swap');
         :root { --accent: #8b5cf6; }
-        body { font-family: sans-serif; background: #0b0f1a; color: #e5e7eb; -webkit-tap-highlight-color: transparent; }
+        body { font-family: 'Inter', sans-serif; background: #0b0f1a; color: #e5e7eb; -webkit-tap-highlight-color: transparent; }
+        .mono { font-family: 'Fira Code', monospace; }
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #374151; border-radius: 10px; }
-        .nav-drawer { transform: translateX(-100%); transition: transform 0.2s ease-out; }
+        .nav-drawer { transform: translateX(-100%); transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1); }
         .nav-drawer.open { transform: translateX(0); }
-        .chat-user { background: #1e293b; border-radius: 1rem 1rem 0 1rem; padding: 1rem; border: 1px solid #334155; align-self: flex-end; }
-        .chat-assistant { background: #064e3b; border-radius: 1rem 1rem 1rem 0; padding: 1rem; border: 1px solid #065f46; align-self: flex-start; }
+        .chat-user { background: #1e293b; border-radius: 1.25rem 1.25rem 0.25rem 1.25rem; border: 1px solid #334155; }
+        .chat-assistant { background: #064e3b; border-radius: 1.25rem 1.25rem 1.25rem 0.25rem; border: 1px solid #065f46; }
+        .card-starred { border-color: rgba(234, 179, 8, 0.4) !important; background: rgba(234, 179, 8, 0.03) !important; }
+        .grid-view { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1rem; }
     </style>
 </head>
-<body class="min-h-screen flex flex-col overflow-hidden">
+<body class="min-h-screen flex flex-col overflow-hidden selection:bg-violet-500/30">
 
-    <!-- SIMPLE NAV -->
+    <!-- NAVIGATION DRAWER -->
     <div id="navOverlay" onclick="toggleMenu()" class="fixed inset-0 bg-black/60 z-[100] hidden backdrop-blur-sm"></div>
-    <aside id="navDrawer" class="nav-drawer fixed top-0 left-0 h-full w-64 bg-[#0b0f1a] border-r border-gray-800 z-[101] p-6 flex flex-col gap-4">
-        <h2 class="text-xl font-bold flex items-center gap-2 mb-4"><i data-lucide="database" class="w-5 text-violet-500"></i> Archive</h2>
-        <button onclick="setView('all')" class="w-full text-left p-3 hover:bg-gray-800 rounded-xl flex items-center gap-3"><i data-lucide="layers" class="w-4"></i> All Chats</button>
-        <button onclick="setView('starred')" class="w-full text-left p-3 hover:bg-gray-800 rounded-xl flex items-center gap-3"><i data-lucide="star" class="w-4 text-yellow-500"></i> Starred</button>
-        <div class="mt-auto border-t border-gray-800 pt-4">
-            <button onclick="resetApp()" class="w-full text-left p-3 text-red-500 hover:bg-red-500/10 rounded-xl flex items-center gap-3"><i data-lucide="trash-2" class="w-4"></i> Reset All</button>
+    <aside id="navDrawer" class="nav-drawer fixed top-0 left-0 h-full w-72 bg-[#0b0f1a] border-r border-gray-800 z-[101] p-6 flex flex-col gap-6 shadow-2xl">
+        <div class="flex items-center gap-3 mb-4">
+            <div class="bg-violet-600 p-2 rounded-xl"><i data-lucide="database" class="w-5 text-white"></i></div>
+            <h1 class="text-xl font-bold">Pro Menu</h1>
+        </div>
+        <nav class="space-y-2">
+            <button onclick="setView('library')" id="nav-library" class="w-full flex items-center justify-between px-4 py-3 rounded-2xl transition-all hover:bg-violet-600/10 font-semibold">
+                <div class="flex items-center gap-4"><i data-lucide="layers" class="w-5"></i> Library</div>
+                <span id="count-library" class="text-[10px] mono text-gray-500">0</span>
+            </button>
+            <button onclick="setView('starred')" id="nav-starred" class="w-full flex items-center justify-between px-4 py-3 rounded-2xl transition-all hover:bg-violet-600/10 font-semibold">
+                <div class="flex items-center gap-4"><i data-lucide="star" class="w-5 text-yellow-500"></i> Starred</div>
+                <span id="count-starred" class="text-[10px] mono text-gray-500">0</span>
+            </button>
+            <button onclick="setView('timeline')" id="nav-timeline" class="w-full flex items-center px-4 py-3 rounded-2xl transition-all hover:bg-violet-600/10 font-semibold gap-4">
+                <i data-lucide="calendar" class="w-5"></i> Timeline
+            </button>
+        </nav>
+        <div class="mt-auto pt-6 border-t border-gray-800">
+            <button onclick="resetApp()" class="w-full flex items-center gap-4 px-4 py-3 text-red-500 hover:bg-red-500/10 rounded-2xl font-bold transition">
+                <i data-lucide="trash-2" class="w-5"></i> Factory Reset
+            </button>
         </div>
     </aside>
 
-    <!-- LOCK -->
+    <!-- LOCK SCREEN -->
     <div id="lockScreen" class="fixed inset-0 bg-[#0b0f1a] z-[200] flex items-center justify-center p-6 text-center">
-        <div class="max-w-xs w-full space-y-6">
-            <h1 class="text-3xl font-bold">Vault Locked</h1>
-            <input type="password" id="passInput" placeholder="Enter 222" class="w-full bg-gray-900 border border-gray-800 p-4 rounded-2xl text-center text-xl outline-none focus:border-violet-500">
-            <button onclick="unlock()" class="w-full bg-violet-600 p-4 rounded-2xl font-bold">Unlock</button>
+        <div class="max-w-xs w-full space-y-8">
+            <div class="w-20 h-20 bg-violet-600/10 rounded-3xl border border-violet-500/30 flex items-center justify-center mx-auto rotate-3">
+                <i data-lucide="shield-check" class="w-10 text-violet-500"></i>
+            </div>
+            <h1 class="text-3xl font-extrabold text-white">Vault Locked</h1>
+            <input type="password" id="passInput" placeholder="Pass: 222" class="w-full bg-gray-900 border border-gray-800 p-5 rounded-2xl text-center text-2xl outline-none focus:border-violet-500 transition shadow-2xl">
+            <button onclick="unlock()" class="w-full bg-violet-600 hover:bg-violet-700 p-5 rounded-2xl font-extrabold text-lg shadow-lg active:scale-95 transition-all">Unlock v4.4</button>
         </div>
     </div>
 
-    <!-- MAIN UI -->
-    <div id="app" class="hidden flex flex-col h-screen">
-        <header class="h-16 border-b border-gray-800 flex items-center justify-between px-4 bg-[#0b0f1a]">
+    <!-- MAIN APP UI -->
+    <div id="app" class="hidden flex flex-col h-screen overflow-hidden">
+        <header class="h-16 border-b border-gray-800 flex items-center justify-between px-4 bg-[#0b0f1a]/80 backdrop-blur-md sticky top-0 z-50">
             <div class="flex items-center gap-3">
-                <button onclick="toggleMenu()" class="p-2"><i data-lucide="menu"></i></button>
-                <span id="viewName" class="font-bold">Library</span>
+                <button onclick="toggleMenu()" class="p-2 hover:bg-gray-800 rounded-xl transition"><i data-lucide="menu"></i></button>
+                <span id="viewTitle" class="font-extrabold text-lg tracking-tight">Library</span>
             </div>
             <div class="flex items-center gap-2">
                 <input type="file" id="fileInput" class="hidden" accept=".json">
-                <button onclick="document.getElementById('fileInput').click()" class="bg-violet-600 p-2 rounded-lg"><i data-lucide="plus"></i></button>
+                <button onclick="document.getElementById('fileInput').click()" class="bg-violet-600 hover:bg-violet-700 p-2.5 rounded-xl transition shadow-lg active:scale-90"><i data-lucide="plus" class="text-white"></i></button>
             </div>
         </header>
 
-        <div class="p-4 border-b border-gray-800">
-            <input type="text" id="search" placeholder="Filter titles..." class="w-full bg-gray-900 border border-gray-800 p-3 rounded-xl outline-none focus:border-violet-500">
+        <div class="p-4 border-b border-gray-800 bg-[#0b0f1a]/40">
+            <div class="relative">
+                <i data-lucide="search" class="absolute left-4 top-3.5 w-4 text-gray-500"></i>
+                <input type="text" id="search" placeholder="Quick filter titles..." class="w-full bg-gray-900 border border-gray-800 py-3 pl-11 pr-4 rounded-2xl outline-none focus:border-violet-500 transition shadow-inner">
+            </div>
         </div>
 
-        <div id="list" class="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
-            <!-- Items appear here -->
+        <div id="content" class="flex-1 overflow-y-auto p-4 md:p-6 custom-scrollbar bg-[#0d121f]">
+            <div id="mainGrid" class="grid-view"></div>
         </div>
     </div>
 
     <!-- DETAIL MODAL -->
-    <div id="modal" class="fixed inset-0 bg-black/90 z-[300] hidden flex flex-col">
-        <header class="h-16 border-b border-gray-800 flex items-center justify-between px-4">
-            <h2 id="mTitle" class="truncate font-bold pr-4">Title</h2>
-            <div class="flex items-center gap-3">
-                <button id="mStar" class="p-2"><i data-lucide="star"></i></button>
-                <button onclick="closeModal()" class="p-2"><i data-lucide="x"></i></button>
+    <div id="modal" class="fixed inset-0 bg-black/95 z-[300] hidden flex flex-col backdrop-blur-md">
+        <header class="h-16 border-b border-gray-800 flex items-center justify-between px-4 md:px-8">
+            <h2 id="mTitle" class="truncate font-extrabold text-white text-lg">Title</h2>
+            <div class="flex items-center gap-2">
+                <button id="mStar" class="p-2.5 hover:bg-gray-800 rounded-xl transition"><i data-lucide="star"></i></button>
+                <button onclick="closeModal()" class="p-2.5 hover:bg-red-500/10 text-gray-400 hover:text-red-500 transition"><i data-lucide="x" class="w-6"></i></button>
             </div>
         </header>
-        <div id="mBody" class="flex-1 overflow-y-auto p-4 space-y-6 flex flex-col custom-scrollbar"></div>
+        <div id="mBody" class="flex-1 overflow-y-auto p-4 md:p-10 space-y-8 flex flex-col custom-scrollbar bg-gray-900/10"></div>
     </div>
 
     <!-- STATUS TOAST -->
-    <div id="toast" class="fixed bottom-6 left-1/2 -translate-x-1/2 bg-violet-600 px-6 py-3 rounded-full shadow-xl opacity-0 transition-opacity pointer-events-none z-[400]">
+    <div id="toast" class="fixed bottom-8 left-1/2 -translate-x-1/2 bg-violet-600 px-8 py-3 rounded-full shadow-2xl opacity-0 transition-all pointer-events-none z-[400] font-bold text-sm">
         <span id="tMsg">Ready</span>
     </div>
 
     <script>
         let db;
-        let indexTable = []; // Small metadata list in RAM
-        let currentView = 'all';
+        let indexTable = []; // Lightning-fast RAM index
+        let currentView = 'library';
 
-        // 1. DATABASE SETUP
         const initDB = () => new Promise(r => {
-            const req = indexedDB.open("ChatKeeperV4", 1);
+            const req = indexedDB.open("ChatKeeperV4_Final", 1);
             req.onupgradeneeded = e => {
                 const d = e.target.result;
-                d.createObjectStore("index", { keyPath: "id" }); // Small metadata
-                d.createObjectStore("vault", { keyPath: "id" }); // Heavy data
+                d.createObjectStore("index", { keyPath: "id" });
+                d.createObjectStore("vault", { keyPath: "id" });
             };
             req.onsuccess = e => { db = e.target.result; r(); };
         });
 
-        // 2. UNLOCK
         function unlock() {
             if (document.getElementById('passInput').value === '222') {
+                localStorage.setItem('ck_authed', 'true');
                 document.getElementById('lockScreen').style.display = 'none';
-                document.getElementById('app').style.display = 'flex';
+                document.getElementById('app').classList.remove('hidden');
                 initDB().then(loadIndex);
             }
         }
 
-        // 3. LOAD INDEX (The "Table of Titles")
         async function loadIndex() {
             const tx = db.transaction("index", "readonly");
             const req = tx.objectStore("index").getAll();
             req.onsuccess = () => {
-                indexTable = req.result.sort((a,b) => b.time - a.time);
+                indexTable = req.result.sort((a,b) => (b.time || 0) - (a.time || 0));
                 render();
             };
         }
 
-        // 4. CHUNKED IMPORT (The "No-Freeze" Engine)
+        // --- B-TRIEVE CHUNKED IMPORT ---
         document.getElementById('fileInput').onchange = e => {
             const file = e.target.files[0];
             if (!file) return;
-            showToast("Reading file...");
             const reader = new FileReader();
             reader.onload = async event => {
                 const raw = JSON.parse(event.target.result);
                 let i = 0;
-                showToast(`Indexing ${raw.length} chats...`);
+                showToast(`Btrieve indexing ${raw.length} files...`);
 
                 const processChunk = () => {
-                    const limit = Math.min(i + 50, raw.length);
+                    const limit = Math.min(i + 100, raw.length);
                     const txIndex = db.transaction("index", "readwrite");
                     const txVault = db.transaction("vault", "readwrite");
                     
@@ -142,6 +165,7 @@
                             title: c.title || "Untitled",
                             date: new Date(c.create_time * 1000).toLocaleDateString(),
                             time: c.create_time,
+                            msgCount: msgs.length,
                             starred: false
                         };
                         txIndex.objectStore("index").put(entry);
@@ -150,9 +174,9 @@
 
                     if (i < raw.length) {
                         showToast(`Indexed ${i} / ${raw.length}...`);
-                        setTimeout(processChunk, 1); // Let browser breathe
+                        setTimeout(processChunk, 1);
                     } else {
-                        showToast("Import complete!");
+                        showToast("Indexing complete!");
                         loadIndex();
                     }
                 };
@@ -161,30 +185,118 @@
             reader.readAsText(file);
         };
 
-        // 5. RENDER LIST
+        // --- THE RENDER ENGINE ---
         function render() {
             const query = document.getElementById('search').value.toLowerCase();
             const filtered = indexTable.filter(item => {
                 const matchSearch = item.title.toLowerCase().includes(query);
-                const matchView = currentView === 'all' || item.starred;
+                const matchView = currentView !== 'starred' || item.starred;
                 return matchSearch && matchView;
             });
 
-            document.getElementById('list').innerHTML = filtered.map(item => `
-                <div onclick="openChat('${item.id}')" class="bg-gray-900/50 border ${item.starred ? 'border-yellow-500/40' : 'border-gray-800'} p-4 rounded-2xl flex justify-between items-center active:scale-95 transition">
-                    <div class="min-w-0 pr-4">
-                        <h3 class="font-bold truncate">${item.title}</h3>
-                        <p class="text-xs text-gray-500">${item.date}</p>
-                    </div>
-                    <i data-lucide="chevron-right" class="w-4 text-gray-700"></i>
-                </div>
-            `).join('');
+            document.getElementById('count-library').innerText = indexTable.length;
+            document.getElementById('count-starred').innerText = indexTable.filter(i => i.starred).length;
+
+            const grid = document.getElementById('mainGrid');
+            
+            if (currentView === 'timeline') {
+                renderTimeline(filtered);
+            } else {
+                renderCards(filtered);
+            }
             lucide.createIcons();
         }
 
-        // 6. OPEN CHAT (The "Btrieve Retrieval")
+        function renderCards(items) {
+            const grid = document.getElementById('mainGrid');
+            if (items.length === 0) {
+                grid.innerHTML = `<div class="col-span-full py-20 text-center text-gray-600"><p>No items found.</p></div>`;
+                return;
+            }
+            grid.innerHTML = items.map(c => `
+                <div id="card-${c.id}" onclick="openChat('${c.id}')" class="bg-gray-900/40 border ${c.starred ? 'card-starred' : 'border-gray-800'} rounded-2xl p-5 hover:border-violet-500/50 hover:bg-gray-800/40 transition-all flex flex-col relative group cursor-pointer animate-in">
+                    <div class="flex justify-between items-start mb-3">
+                        <span class="text-[9px] font-black tracking-widest uppercase text-violet-400 bg-violet-400/5 px-2 py-1 rounded-md border border-violet-500/10">
+                            ${c.msgCount || 0} MSGS
+                        </span>
+                        <button onclick="event.stopPropagation(); toggleStar('${c.id}')" class="p-2 -m-2 hover:scale-110 active:scale-90 transition">
+                            <i id="star-icon-${c.id}" data-lucide="star" class="w-4 ${c.starred ? 'fill-yellow-500 text-yellow-500' : 'text-gray-700'}"></i>
+                        </button>
+                    </div>
+                    <h3 class="font-bold text-base mb-2 truncate text-white group-hover:text-violet-300 transition-colors">${c.title}</h3>
+                    <div class="flex items-center justify-between mt-auto pt-4 border-t border-gray-800/50">
+                        <span class="text-[10px] text-gray-600 mono">${c.date}</span>
+                        <span class="text-xs text-violet-400 font-bold flex items-center gap-1">Explore <i data-lucide="chevron-right" class="w-3"></i></span>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function renderTimeline(items) {
+            const grid = document.getElementById('mainGrid');
+            const groups = {};
+            items.forEach(c => {
+                const d = new Date(c.time * 1000);
+                const key = d.toLocaleString('default', { month: 'long', year: 'numeric' });
+                if (!groups[key]) groups[key] = [];
+                groups[key].push(c);
+            });
+
+            grid.innerHTML = Object.entries(groups).map(([month, chats]) => `
+                <div class="col-span-full mb-8">
+                    <div class="flex items-center gap-4 mb-4">
+                        <h2 class="text-xs font-black text-gray-500 uppercase tracking-widest">${month}</h2>
+                        <div class="h-px flex-1 bg-gray-800"></div>
+                    </div>
+                    <div class="space-y-3">
+                        ${chats.map(c => `
+                            <div onclick="openChat('${c.id}')" class="bg-gray-900/30 border ${c.starred ? 'border-yellow-500/20' : 'border-gray-800'} p-4 rounded-2xl flex items-center justify-between hover:bg-gray-800/40 transition cursor-pointer">
+                                <div class="min-w-0 pr-4 flex items-center gap-4">
+                                    <button onclick="event.stopPropagation(); toggleStar('${c.id}')">
+                                        <i data-lucide="star" class="w-4 ${c.starred ? 'fill-yellow-500 text-yellow-500' : 'text-gray-800/50'}"></i>
+                                    </button>
+                                    <div><h4 class="font-bold text-sm text-gray-200 truncate">${c.title}</h4><p class="text-[9px] text-gray-600 mono">${c.date}</p></div>
+                                </div>
+                                <i data-lucide="chevron-right" class="w-4 text-gray-700"></i>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // --- DIRECT STAR LOGIC ---
+        async function toggleStar(id, fromModal = false) {
+            const item = indexTable.find(x => x.id === id);
+            item.starred = !item.starred;
+            const tx = db.transaction("index", "readwrite");
+            tx.objectStore("index").put(item);
+
+            // Instant Star UI Update
+            const icon = document.getElementById(`star-icon-${id}`);
+            const card = document.getElementById(`card-${id}`);
+            if (icon) {
+                if (item.starred) { icon.classList.replace('text-gray-700', 'fill-yellow-500'); icon.classList.add('text-yellow-500'); }
+                else { icon.classList.replace('fill-yellow-500', 'text-gray-700'); icon.classList.remove('text-yellow-500'); }
+            }
+            if (card) {
+                if (item.starred) card.classList.add('card-starred');
+                else card.classList.remove('card-starred');
+            }
+
+            if (fromModal) {
+                const mStar = document.getElementById('mStar');
+                mStar.innerHTML = `<i data-lucide="star" class="w-5 ${item.starred ? 'fill-yellow-500 text-yellow-500' : 'text-gray-500'}"></i>`;
+                lucide.createIcons();
+            }
+
+            if (currentView === 'starred' && !fromModal) render();
+            document.getElementById('count-starred').innerText = indexTable.filter(i => i.starred).length;
+        }
+
+        // --- BTRIEVE DATA RETRIEVAL ---
         async function openChat(id) {
-            showToast("Retrieving...");
+            showToast("Opening vault...");
             const item = indexTable.find(x => x.id === id);
             const tx = db.transaction("vault", "readonly");
             const req = tx.objectStore("vault").get(id);
@@ -192,55 +304,39 @@
                 const data = req.result;
                 document.getElementById('mTitle').innerText = item.title;
                 document.getElementById('mBody').innerHTML = data.msgs.map(m => `
-                    <div class="${m.role === 'user' ? 'chat-user' : 'chat-assistant'} max-w-[90%]">
-                        <span class="text-[9px] font-bold uppercase opacity-30">${m.role}</span>
-                        <div class="text-sm whitespace-pre-wrap mt-1">${m.text}</div>
+                    <div class="flex flex-col ${m.role === 'user' ? 'items-end' : 'items-start'}">
+                        <div class="${m.role === 'user' ? 'chat-user' : 'chat-assistant'} max-w-[90%]">
+                            <span class="text-[9px] font-black uppercase tracking-widest opacity-40 mb-2 block">${m.role}</span>
+                            <div class="text-[14px] leading-relaxed whitespace-pre-wrap">${m.text}</div>
+                        </div>
                     </div>
                 `).join('');
                 
-                const starBtn = document.getElementById('mStar');
-                starBtn.innerHTML = `<i data-lucide="star" class="w-5 ${item.starred ? 'fill-yellow-500 text-yellow-500' : 'text-gray-500'}"></i>`;
-                starBtn.onclick = () => toggleStar(id);
+                const mStar = document.getElementById('mStar');
+                mStar.innerHTML = `<i data-lucide="star" class="w-5 ${item.starred ? 'fill-yellow-500 text-yellow-500' : 'text-gray-500'}"></i>`;
+                mStar.onclick = () => toggleStar(id, true);
 
-                document.getElementById('modal').style.display = 'flex';
+                document.getElementById('modal').classList.remove('hidden');
                 lucide.createIcons();
                 hideToast();
             };
         }
 
-        async function toggleStar(id) {
-            const item = indexTable.find(x => x.id === id);
-            item.starred = !item.starred;
-            const tx = db.transaction("index", "readwrite");
-            tx.objectStore("index").put(item);
-            
-            // Update modal star UI
-            const starBtn = document.getElementById('mStar');
-            starBtn.innerHTML = `<i data-lucide="star" class="w-5 ${item.starred ? 'fill-yellow-500 text-yellow-500' : 'text-gray-500'}"></i>`;
-            lucide.createIcons();
-            render();
-        }
-
-        // 7. UTILS
-        function toggleMenu() {
-            const d = document.getElementById('navDrawer');
-            const o = document.getElementById('navOverlay');
-            d.classList.toggle('open');
-            o.classList.toggle('hidden');
-        }
+        // --- CORE UI UTILS ---
+        function toggleMenu() { document.getElementById('navDrawer').classList.toggle('open'); document.getElementById('navOverlay').classList.toggle('hidden'); }
         function setView(v) {
             currentView = v;
-            document.getElementById('viewName').innerText = v === 'all' ? 'Library' : 'Starred';
+            document.getElementById('viewTitle').innerText = v.charAt(0).toUpperCase() + v.slice(1);
             toggleMenu();
             render();
         }
-        function closeModal() { document.getElementById('modal').style.display = 'none'; }
-        function showToast(m) { const t = document.getElementById('toast'); document.getElementById('tMsg').innerText = m; t.style.opacity = '1'; }
-        function hideToast() { document.getElementById('toast').style.opacity = '0'; }
-        function resetApp() { if(confirm("Clear all data?")) { indexedDB.deleteDatabase("ChatKeeperV4"); location.reload(); } }
+        function closeModal() { document.getElementById('modal').classList.add('hidden'); }
+        function showToast(m) { const t = document.getElementById('toast'); document.getElementById('tMsg').innerText = m; t.style.opacity = '1'; t.style.transform = 'translate(-50%, 0)'; }
+        function hideToast() { const t = document.getElementById('toast'); t.style.opacity = '0'; t.style.transform = 'translate(-50%, 20px)'; }
+        function resetApp() { if(confirm("This wipes the local database. Proceed?")) { indexedDB.deleteDatabase("ChatKeeperV4_Final"); localStorage.clear(); location.reload(); } }
 
         document.getElementById('search').oninput = render;
-        lucide.createIcons();
+        window.onload = () => { if (localStorage.getItem('ck_authed')) unlock(); lucide.createIcons(); };
     </script>
 </body>
 </html>
