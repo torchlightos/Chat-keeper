@@ -2,241 +2,254 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Chat Keeper Mobile</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat Keeper Pro v3.0</title>
+    <link rel="manifest" href="manifest.json">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Fira+Code&display=swap');
-        body { font-family: 'Inter', sans-serif; background: #0b0f1a; color: #e5e7eb; -webkit-tap-highlight-color: transparent; }
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap');
+        :root { --accent: #8b5cf6; --accent-hover: #7c3aed; }
+        body { font-family: 'Inter', sans-serif; background: #0b0f1a; color: #e5e7eb; }
         .mono { font-family: 'Fira Code', monospace; }
-        .safe-area-bottom { padding-bottom: env(safe-area-inset-bottom); }
-        .chat-user { background: #1e293b; align-self: flex-end; border-radius: 1rem 1rem 0 1rem; border: 1px solid #334155; }
-        .chat-assistant { background: #064e3b; align-self: flex-start; border-radius: 1rem 1rem 1rem 0; border: 1px solid #065f46; }
-        .card-active { border-color: #8b5cf6 !important; background: rgba(139, 92, 246, 0.05); }
-        .animate-in { animation: slideUp 0.2s ease-out forwards; }
-        @keyframes slideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        /* Prevent elastic scroll on mobile */
-        html, body { height: 100%; overflow: hidden; position: fixed; width: 100%; }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #374151; border-radius: 10px; }
+        .chat-user { background: #1e293b; align-self: flex-end; border-radius: 1.25rem 1.25rem 0.25rem 1.25rem; border: 1px solid #334155; }
+        .chat-assistant { background: #064e3b; align-self: flex-start; border-radius: 1.25rem 1.25rem 1.25rem 0.25rem; border: 1px solid #065f46; }
+        .animate-in { animation: fadeIn 0.3s ease-out forwards; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .grid-view { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1.5rem; }
     </style>
 </head>
-<body class="flex flex-col">
+<body class="min-h-screen flex flex-col selection:bg-violet-500/30">
 
     <!-- LOCK SCREEN -->
-    <div id="lock-screen" class="fixed inset-0 bg-[#0b0f1a] flex items-center justify-center p-8 z-[10000] text-center">
-        <div class="w-full max-w-xs space-y-8">
-            <div class="bg-violet-600/20 w-20 h-20 rounded-3xl flex items-center justify-center mx-auto border border-violet-500/30">
-                <i data-lucide="shield-check" class="w-10 h-10 text-violet-500"></i>
+    <div id="lock-screen" class="fixed inset-0 bg-[#0b0f1a] flex items-center justify-center p-6 z-[9999] text-center">
+        <div class="max-w-md w-full space-y-8 animate-in">
+            <div class="bg-violet-500/10 w-24 h-24 rounded-3xl flex items-center justify-center mx-auto border border-violet-500/30 rotate-3">
+                <i data-lucide="shield-check" class="w-12 h-12 text-violet-500"></i>
             </div>
-            <div class="space-y-2">
-                <h1 class="text-2xl font-extrabold text-white">Vault Locked</h1>
-                <p class="text-gray-500 text-sm">Enter master key <span class="text-violet-400">222</span></p>
+            <div>
+                <h1 id="lock-title" class="text-4xl font-black text-white mb-3 tracking-tight">Vault Locked</h1>
+                <p id="lock-msg" class="text-gray-400 text-lg">Enter master key <span class="text-violet-400 font-bold">222</span></p>
             </div>
             <div class="space-y-4">
-                <input type="password" id="keyInput" inputmode="numeric" placeholder="••••" class="w-full bg-gray-900 border border-gray-800 rounded-2xl px-4 py-4 text-center text-3xl font-mono focus:border-violet-500 outline-none text-white tracking-widest">
-                <button onclick="activateKey()" class="w-full bg-violet-600 active:bg-violet-700 py-4 rounded-2xl font-bold text-lg shadow-lg transition-transform active:scale-[0.98]">Unlock Archive</button>
+                <input type="text" id="keyInput" placeholder="CK-XXXX" class="w-full bg-gray-900 border border-gray-800 rounded-2xl px-6 py-4 text-center text-2xl font-mono focus:border-violet-500 outline-none transition shadow-2xl">
+                <button onclick="activateKey()" class="w-full bg-violet-600 hover:bg-violet-700 py-4 rounded-2xl font-bold text-lg shadow-lg active:scale-[0.98] transition-all">Unlock v3.0 Archive</button>
             </div>
         </div>
     </div>
 
-    <!-- MAIN APP WRAPPER -->
-    <div id="app-content" class="flex flex-col h-full hidden overflow-hidden">
-        
-        <!-- HEADER -->
-        <header class="pt-12 pb-4 px-5 flex justify-between items-center bg-[#0b0f1a] shrink-0">
+    <!-- MAIN APP -->
+    <div id="app-content" class="flex flex-col h-screen overflow-hidden hidden">
+        <header class="h-16 border-b border-gray-800/60 px-6 flex justify-between items-center bg-[#0b0f1a]/80 backdrop-blur-md sticky top-0 z-50">
             <div class="flex items-center gap-3">
-                <div class="bg-violet-600 p-1.5 rounded-xl"><i data-lucide="database" class="w-5 h-5 text-white"></i></div>
-                <div>
-                    <h1 class="text-lg font-extrabold leading-none">Chat Keeper</h1>
-                    <span class="text-violet-400 text-[10px] mono uppercase tracking-widest">v3.0 Mobile Pro</span>
-                </div>
+                <div class="bg-violet-600 p-1.5 rounded-lg"><i data-lucide="database" class="w-5 h-5 text-white"></i></div>
+                <h1 class="text-lg font-bold">Chat Keeper <span class="bg-violet-500/10 text-violet-400 text-[10px] px-2 py-0.5 rounded-full border border-violet-500/20 mono ml-2">v3.0 PRO</span></h1>
             </div>
-            <div class="flex items-center gap-2">
+            <div class="flex gap-3 items-center">
+                <button id="installBtn" class="hidden bg-gray-800 hover:bg-gray-700 text-white px-4 py-2 rounded-xl text-sm font-semibold transition border border-gray-700">Install PWA</button>
                 <input type="file" id="fileInput" class="hidden" accept=".json">
-                <button onclick="document.getElementById('fileInput').click()" class="bg-violet-600 active:scale-95 p-2.5 rounded-xl transition">
-                    <i data-lucide="plus" class="w-5 h-5"></i>
+                <button onclick="document.getElementById('fileInput').click()" class="bg-violet-600 hover:bg-violet-700 px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition shadow-lg shadow-violet-900/20">
+                    <i data-lucide="plus-circle" class="w-4"></i> Import Archive
                 </button>
-                <button onclick="resetLicense()" class="p-2.5 text-gray-500"><i data-lucide="log-out" class="w-5 h-5"></i></button>
+                <button onclick="resetLicense()" class="p-2 text-gray-500 hover:text-red-500 transition" title="Logout/Lock">
+                    <i data-lucide="log-out" class="w-4"></i>
+                </button>
             </div>
         </header>
 
-        <!-- SEARCH BAR (FULL WIDTH) -->
-        <div class="px-5 pb-4 shrink-0">
-            <div class="relative w-full">
-                <i data-lucide="search" class="absolute left-4 top-1/2 -translate-y-1/2 w-4 text-gray-500"></i>
-                <input type="text" id="searchInput" placeholder="Search conversations..." class="w-full bg-gray-900 border border-gray-800 rounded-2xl py-4 pl-12 pr-4 focus:border-violet-500 outline-none text-base text-white appearance-none shadow-inner">
-            </div>
+        <div class="flex flex-1 overflow-hidden">
+            <!-- Navigation Sidebar -->
+            <aside class="w-64 border-r border-gray-800/60 p-4 hidden md:flex flex-col gap-2 bg-[#0b0f1a]">
+                <div class="px-3 mb-4">
+                    <p class="text-[10px] font-bold text-gray-500 uppercase tracking-[0.2em]">Navigator</p>
+                </div>
+                <nav class="space-y-1 flex-1">
+                    <button onclick="setView('library')" id="nav-library" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition-all group hover:bg-gray-800/50">
+                        <div class="flex items-center gap-3">
+                            <i data-lucide="layers" class="w-4 text-gray-400 group-hover:text-violet-400"></i>
+                            <span class="text-sm font-medium">Library</span>
+                        </div>
+                        <span id="count-library" class="text-[10px] text-gray-500 mono">0</span>
+                    </button>
+                    <button onclick="setView('collections')" id="nav-collections" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition-all group hover:bg-gray-800/50">
+                        <div class="flex items-center gap-3">
+                            <i data-lucide="star" class="w-4 text-yellow-500/80 group-hover:text-yellow-400"></i>
+                            <span class="text-sm font-medium">Starred</span>
+                        </div>
+                        <span id="count-starred" class="text-[10px] text-gray-500 mono">0</span>
+                    </button>
+                    <button onclick="setView('timeline')" id="nav-timeline" class="w-full flex items-center px-3 py-2.5 rounded-xl transition-all group hover:bg-gray-800/50">
+                        <div class="flex items-center gap-3">
+                            <i data-lucide="calendar" class="w-4 text-gray-400 group-hover:text-violet-400"></i>
+                            <span class="text-sm font-medium">Timeline</span>
+                        </div>
+                    </button>
+                </nav>
+            </aside>
+
+            <!-- Main Workspace -->
+            <main class="flex-1 flex flex-col min-w-0 bg-[#0d121f]">
+                <div class="p-4 border-b border-gray-800/60 flex flex-col gap-4 bg-[#0b0f1a]/40">
+                    <div class="flex items-center gap-3">
+                        <!-- Restored Large Search Input -->
+                        <div class="relative flex-1">
+                            <i data-lucide="search" class="absolute left-4 top-3.5 w-4 text-gray-500"></i>
+                            <input type="text" id="searchInput" placeholder="Search archive (supports regex, model names, titles)..." 
+                                class="w-full bg-gray-900 border border-gray-800 rounded-2xl py-3 pl-11 pr-4 focus:outline-none focus:border-violet-500 transition shadow-inner">
+                        </div>
+                        
+                        <!-- Export Tool -->
+                        <div class="relative">
+                            <button onclick="toggleExportMenu()" class="bg-gray-900 hover:bg-gray-800 p-3 rounded-xl border border-gray-800 group transition" title="Export Current View">
+                                <i data-lucide="download" class="w-5 text-violet-400 group-hover:scale-110 transition"></i>
+                            </button>
+                            <!-- Export Dropdown -->
+                            <div id="exportMenu" class="hidden absolute right-0 top-full mt-2 w-52 bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl overflow-hidden z-[100] animate-in">
+                                <div class="px-4 py-2 bg-gray-800/50 text-[10px] font-bold text-gray-500 uppercase tracking-widest border-b border-gray-800">Choose Format</div>
+                                <button onclick="exportAs('json')" class="w-full text-left px-4 py-3 text-xs hover:bg-violet-600/20 flex items-center gap-3 border-b border-gray-800/50 transition"><i data-lucide="file-json" class="w-3"></i> Archive (JSON)</button>
+                                <button onclick="exportAs('txt')" class="w-full text-left px-4 py-3 text-xs hover:bg-violet-600/20 flex items-center gap-3 border-b border-gray-800/50 transition"><i data-lucide="file-text" class="w-3"></i> Readable (TXT)</button>
+                                <button onclick="exportAs('md')" class="w-full text-left px-4 py-3 text-xs hover:bg-violet-600/20 flex items-center gap-3 transition"><i data-lucide="book-open" class="w-3"></i> NotebookLM (MD)</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="contentArea" class="flex-1 overflow-y-auto p-6 custom-scrollbar">
+                    <div id="chatGrid" class="grid-view"></div>
+                </div>
+            </main>
         </div>
-
-        <!-- CONTENT AREA -->
-        <main id="contentArea" class="flex-1 overflow-y-auto px-5 pb-32 space-y-3">
-            <div id="chatGrid" class="flex flex-col gap-3">
-                <!-- Cards injected here -->
-            </div>
-        </main>
-
-        <!-- BOTTOM NAV -->
-        <nav class="fixed bottom-0 left-0 right-0 bg-[#0b0f1a]/95 backdrop-blur-xl border-t border-gray-800/50 flex justify-around items-center px-6 safe-area-bottom h-20 z-50">
-            <button onclick="setView('library')" id="nav-library" class="flex flex-col items-center gap-1 text-gray-500 transition-colors">
-                <i data-lucide="layout-grid" class="w-6 h-6"></i>
-                <span class="text-[10px] font-bold uppercase tracking-tighter">Library</span>
-            </button>
-            <button onclick="toggleExportMenu()" class="flex flex-col items-center gap-1 text-violet-400 relative">
-                <div class="bg-violet-600/10 p-3 rounded-full -mt-8 border border-violet-500/20 shadow-xl">
-                    <i data-lucide="download" class="w-6 h-6"></i>
-                </div>
-                <span class="text-[10px] font-bold uppercase tracking-tighter mt-1">Export</span>
-                <!-- EXPORT MENU -->
-                <div id="exportMenu" class="hidden absolute bottom-24 left-1/2 -translate-x-1/2 w-48 bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col">
-                    <button onclick="exportAs('json')" class="p-4 text-xs font-bold border-b border-gray-800 active:bg-violet-600/20 text-left flex items-center gap-3"><i data-lucide="code" class="w-4"></i> JSON ARCHIVE</button>
-                    <button onclick="exportAs('txt')" class="p-4 text-xs font-bold border-b border-gray-800 active:bg-violet-600/20 text-left flex items-center gap-3"><i data-lucide="file-text" class="w-4"></i> PLAIN TEXT</button>
-                    <button onclick="exportAs('md')" class="p-4 text-xs font-bold active:bg-violet-600/20 text-left flex items-center gap-3"><i data-lucide="book-open" class="w-4"></i> NOTEBOOK LM</button>
-                </div>
-            </button>
-            <button onclick="setView('collections')" id="nav-collections" class="flex flex-col items-center gap-1 text-gray-500 transition-colors">
-                <i data-lucide="star" class="w-6 h-6"></i>
-                <span class="text-[10px] font-bold uppercase tracking-tighter">Starred</span>
-            </button>
-        </nav>
     </div>
 
     <!-- DETAIL MODAL -->
-    <div id="detailModal" class="fixed inset-0 bg-black z-[1000] hidden flex flex-col">
-        <header class="pt-12 pb-4 px-5 flex justify-between items-center bg-gray-900/40 border-b border-gray-800 shrink-0">
-            <button onclick="closeModal()" class="p-2 -ml-2 text-gray-400 active:text-white"><i data-lucide="chevron-left" class="w-7 h-7"></i></button>
-            <h2 id="modalTitle" class="font-bold truncate text-sm flex-1 text-center px-4">Detail</h2>
-            <div class="flex gap-1">
-                <button onclick="reviveConversation()" class="p-2 text-violet-400 active:scale-90"><i data-lucide="copy" class="w-5 h-5"></i></button>
-                <button id="modalStarBtn" class="p-2 active:scale-90"><i data-lucide="star" class="w-5 h-5"></i></button>
-            </div>
-        </header>
-        <div id="modalTranscript" class="flex-1 overflow-y-auto p-5 flex flex-col gap-5 pb-20"></div>
+    <div id="detailModal" class="fixed inset-0 bg-black/95 z-[100] hidden flex items-center justify-center p-4 backdrop-blur-md">
+        <div class="bg-[#0b0f1a] border border-gray-800 w-full max-w-5xl h-[85vh] rounded-3xl flex flex-col overflow-hidden shadow-2xl animate-in">
+            <header class="p-4 border-b border-gray-800 flex justify-between items-center bg-gray-900/50">
+                <div class="flex flex-col min-w-0 pr-4">
+                    <h2 id="modalTitle" class="font-bold truncate text-xl">Conversation Detail</h2>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button onclick="reviveConversation()" class="p-2.5 bg-violet-500/10 hover:bg-violet-500/20 text-violet-400 rounded-xl transition" title="Copy Context">
+                        <i data-lucide="refresh-cw" class="w-4"></i>
+                    </button>
+                    <button id="modalStarBtn" class="p-2.5 hover:bg-gray-800 rounded-xl transition"><i data-lucide="star" class="w-4"></i></button>
+                    <button onclick="closeModal()" class="p-2.5 hover:bg-red-500/10 text-gray-400 hover:text-red-500 rounded-xl transition"><i data-lucide="x" class="w-5"></i></button>
+                </div>
+            </header>
+            <div id="modalTranscript" class="flex-1 overflow-y-auto p-8 flex flex-col gap-6 custom-scrollbar bg-gray-900/20"></div>
+        </div>
     </div>
 
-    <div id="toast" class="fixed top-14 left-1/2 -translate-x-1/2 px-6 py-3 bg-violet-600 text-white text-xs font-black rounded-full shadow-2xl opacity-0 transition-all z-[11000] pointer-events-none uppercase tracking-widest"></div>
+    <div id="toast" class="fixed bottom-8 left-1/2 -translate-x-1/2 px-6 py-3 bg-violet-600 text-white rounded-2xl shadow-2xl transition-all opacity-0 translate-y-10 z-[200] pointer-events-none font-medium text-sm"></div>
 
     <script>
         let db, allChats = [], starredIds = new Set(), activeChatId = null, currentView = 'library';
 
-        const initDB = () => new Promise(resolve => {
+        const initDB = () => new Promise(r => {
             const req = indexedDB.open("ChatKeeperV3", 1);
             req.onupgradeneeded = e => {
                 const d = e.target.result;
-                if (!d.objectStoreNames.contains("archive")) d.createObjectStore("archive", { keyPath: "id" });
-                if (!d.objectStoreNames.contains("meta")) d.createObjectStore("meta", { keyPath: "id" });
+                d.createObjectStore("archive", { keyPath: "id" });
+                d.createObjectStore("meta", { keyPath: "id" });
             };
-            req.onsuccess = e => { db = e.target.result; resolve(); };
+            req.onsuccess = e => { db = e.target.result; r(); };
         });
 
         async function loadData() {
-            if (!db) return;
             const tx = db.transaction(["archive", "meta"], "readonly");
-            allChats = await new Promise(r => { 
-                const req = tx.objectStore("archive").getAll(); 
-                req.onsuccess = () => r(req.result || []); 
-            });
-            const metas = await new Promise(r => { 
-                const req = tx.objectStore("meta").getAll(); 
-                req.onsuccess = () => r(req.result || []); 
-            });
+            allChats = await new Promise(r => { const req = tx.objectStore("archive").getAll(); req.onsuccess = () => r(req.result); });
+            const metas = await new Promise(r => { const req = tx.objectStore("meta").getAll(); req.onsuccess = () => r(req.result); });
             starredIds = new Set(metas.filter(m => m.starred).map(m => m.id));
             updateUI();
         }
 
         async function activateKey() {
-            const val = document.getElementById('keyInput').value || localStorage.getItem('ck_v3_key');
-            if (val === '222') {
+            const input = document.getElementById('keyInput').value.trim();
+            if (input === '222') {
                 localStorage.setItem('ck_v3_key', '222');
                 document.getElementById('lock-screen').classList.add('hidden');
                 document.getElementById('app-content').classList.remove('hidden');
-                await initDB(); 
-                await loadData();
-                document.getElementById('searchInput').addEventListener('input', updateUI);
+                await initDB(); await loadData();
             }
         }
 
         document.getElementById('fileInput').onchange = async e => {
-            if (!e.target.files.length) return;
+            const file = e.target.files[0];
+            if (!file) return;
+            showToast("Processing archive...");
+            const text = await file.text();
             try {
-                const text = await e.target.files[0].text();
                 const raw = JSON.parse(text);
                 const processed = raw.map(c => ({
-                    id: c.id, 
-                    title: c.title || "Untitled", 
-                    date: new Date(c.create_time * 1000).toLocaleDateString(),
+                    id: c.id, title: c.title || "Untitled", date: new Date(c.create_time * 1000).toLocaleDateString(),
+                    rawDate: c.create_time,
                     messages: Object.values(c.mapping || {}).filter(m => m.message?.content?.parts).map(m => ({
-                        role: m.message.author.role, 
-                        text: (m.message.content.parts || []).join('\n')
+                        role: m.message.author.role, text: m.message.content.parts.join('\n')
                     }))
                 })).filter(c => c.messages.length > 0);
-
                 const tx = db.transaction("archive", "readwrite");
                 processed.forEach(c => tx.objectStore("archive").put(c));
-                tx.oncomplete = () => {
-                    showToast(`Imported ${processed.length} chats`);
-                    loadData();
-                };
-            } catch (err) {
-                showToast("Invalid JSON");
-            }
+                showToast(`Imported ${processed.length} chats`);
+                loadData();
+            } catch (err) { showToast("Invalid JSON file", "error"); }
         };
 
         function renderGrid(chats) {
             const grid = document.getElementById('chatGrid');
-            if (!chats.length) {
-                grid.innerHTML = `<div class="py-20 text-center text-gray-600 text-sm font-bold uppercase tracking-widest opacity-50">Empty Archive</div>`;
+            if (chats.length === 0) {
+                grid.innerHTML = `<div class="col-span-full py-20 text-center text-gray-600"><p>No matching conversations found.</p></div>`;
                 return;
             }
-            grid.innerHTML = chats.map(c => {
-                const isStarred = starredIds.has(c.id);
-                return `
-                <div onclick="viewDetail('${c.id}')" class="group relative bg-gray-900/40 border ${isStarred ? 'border-yellow-500/30 bg-yellow-500/[0.03]' : 'border-gray-800/60'} p-5 rounded-3xl active:scale-[0.98] transition-all animate-in">
-                    <div class="flex justify-between items-start gap-4">
-                        <div class="flex-1 min-w-0">
-                            <h3 class="font-bold truncate text-gray-100 mb-1">${c.title}</h3>
-                            <p class="text-xs text-gray-500 line-clamp-1 mb-3">${c.messages[0]?.text || 'No preview'}</p>
-                            <div class="flex items-center gap-3 text-[10px] font-bold mono text-gray-600">
-                                <span class="bg-gray-800 px-2 py-0.5 rounded-lg">${c.date}</span>
-                                <span>${c.messages.length} MSG</span>
-                            </div>
-                        </div>
-                        <button onclick="event.stopPropagation(); toggleStar('${c.id}')" class="p-3 -mt-2 -mr-2 rounded-2xl active:bg-gray-800 transition">
-                            <i data-lucide="star" class="w-6 h-6 ${isStarred ? 'fill-yellow-500 text-yellow-500' : 'text-gray-700'}"></i>
+            grid.innerHTML = chats.map(c => `
+                <div class="bg-gray-900/40 border ${starredIds.has(c.id) ? 'border-yellow-500/30' : 'border-gray-800'} rounded-2xl p-5 hover:border-violet-500/50 hover:bg-gray-800/40 transition-all flex flex-col group animate-in relative">
+                    <div class="flex justify-between items-start mb-3">
+                        <span class="text-[9px] font-black tracking-widest uppercase text-violet-400 bg-violet-400/5 px-2 py-1 rounded-md border border-violet-500/10">
+                            ${c.messages.length} MSGS
+                        </span>
+                        <button onclick="event.stopPropagation(); toggleStar('${c.id}')" class="p-1 hover:scale-110 transition">
+                            <i data-lucide="star" class="w-4 ${starredIds.has(c.id) ? 'fill-yellow-500 text-yellow-500' : 'text-gray-700'}"></i>
+                        </button>
+                    </div>
+                    <h3 class="font-bold text-base mb-2 truncate text-white group-hover:text-violet-300 transition-colors">${c.title}</h3>
+                    <p class="text-xs text-gray-500 line-clamp-2 italic opacity-70 mb-4">"${c.messages[0]?.text.slice(0, 80)}..."</p>
+                    <div class="flex items-center justify-between mt-auto pt-4 border-t border-gray-800/50">
+                        <span class="text-[10px] text-gray-600 font-medium mono">${c.date}</span>
+                        <button onclick="viewDetail('${c.id}')" class="text-xs text-violet-400 font-bold hover:text-violet-200 flex items-center gap-1">
+                            Explore <i data-lucide="chevron-right" class="w-3"></i>
                         </button>
                     </div>
                 </div>
-            `}).join('');
+            `).join('');
             lucide.createIcons();
         }
 
         async function toggleStar(id) {
             const tx = db.transaction("meta", "readwrite");
             const store = tx.objectStore("meta");
-            const isStarred = starredIds.has(id);
-            if (isStarred) {
-                starredIds.delete(id);
-                store.put({ id, starred: false });
-            } else {
-                starredIds.add(id);
-                store.put({ id, starred: true });
-            }
-            tx.oncomplete = () => updateUI();
+            const starred = !starredIds.has(id);
+            if (starred) starredIds.add(id); else starredIds.delete(id);
+            await store.put({ id, starred });
+            updateUI();
         }
 
         function viewDetail(id) {
             activeChatId = id;
             const c = allChats.find(x => x.id === id);
-            if (!c) return;
             document.getElementById('modalTitle').innerText = c.title;
             document.getElementById('modalTranscript').innerHTML = c.messages.map(m => `
-                <div class="${m.role === 'user' ? 'chat-user' : 'chat-assistant'} p-4 max-w-[92%] text-sm">
-                    <p class="font-black text-[8px] uppercase tracking-widest opacity-40 mb-2">${m.role}</p>
-                    <div class="whitespace-pre-wrap leading-relaxed">${m.text}</div>
+                <div class="flex flex-col ${m.role === 'user' ? 'items-end' : 'items-start'}">
+                    <div class="max-w-[85%] p-5 ${m.role === 'user' ? 'chat-user' : 'chat-assistant'}">
+                        <p class="text-[9px] font-black uppercase tracking-widest opacity-40 mb-2">${m.role}</p>
+                        <div class="text-[14px] leading-relaxed whitespace-pre-wrap">${m.text}</div>
+                    </div>
                 </div>
             `).join('');
             
             const starBtn = document.getElementById('modalStarBtn');
-            starBtn.innerHTML = `<i data-lucide="star" class="w-6 h-6 ${starredIds.has(id) ? 'fill-yellow-500 text-yellow-500' : 'text-gray-500'}"></i>`;
+            starBtn.innerHTML = `<i data-lucide="star" class="w-5 ${starredIds.has(id) ? 'fill-yellow-500 text-yellow-500' : ''}"></i>`;
             starBtn.onclick = () => { toggleStar(id); viewDetail(id); };
 
             document.getElementById('detailModal').classList.remove('hidden');
@@ -246,70 +259,61 @@
         function toggleExportMenu() { document.getElementById('exportMenu').classList.toggle('hidden'); }
 
         function exportAs(format) {
-            const searchVal = document.getElementById('searchInput').value.toLowerCase();
-            let data = currentView === 'collections' ? allChats.filter(c => starredIds.has(c.id)) : allChats;
-            if (searchVal) data = data.filter(c => c.title.toLowerCase().includes(searchVal) || c.messages.some(m => m.text.toLowerCase().includes(searchVal)));
-
+            const data = allChats.filter(c => currentView !== 'collections' || starredIds.has(c.id));
             let content = "", mime = "text/plain", ext = "txt";
             if (format === 'json') { content = JSON.stringify(data, null, 2); mime = "application/json"; ext = "json"; }
-            else { data.forEach(c => { content += `\n--- ${c.title} (${c.date}) ---\n\n`; c.messages.forEach(m => { content += `${m.role.toUpperCase()}: ${m.text}\n\n`; }); }); if (format === 'md') ext = "md"; }
-
+            else {
+                data.forEach(c => {
+                    content += `\n--- ${c.title.toUpperCase()} (${c.date}) ---\n\n`;
+                    c.messages.forEach(m => { content += `${m.role.toUpperCase()}: ${m.text}\n\n`; });
+                });
+                if (format === 'md') ext = "md";
+            }
             const blob = new Blob([content], { type: mime });
             const a = document.createElement('a');
             a.href = URL.createObjectURL(blob);
-            a.download = `Keeper_Export_${new Date().getTime()}.${ext}`;
+            a.download = `ChatKeeper_Export_${new Date().toISOString().slice(0,10)}.${ext}`;
             a.click();
             toggleExportMenu();
+            showToast(`Exported ${data.length} chats as ${ext.toUpperCase()}`);
         }
 
         function setView(v) { 
             currentView = v; 
-            document.getElementById('exportMenu').classList.add('hidden');
+            ['library', 'collections', 'timeline'].forEach(n => {
+                const el = document.getElementById(`nav-${n}`);
+                if (el) el.classList.toggle('bg-violet-600/10', v === n);
+            });
             updateUI(); 
         }
-        
-        function updateUI() { 
-            const searchInput = document.getElementById('searchInput');
-            const searchVal = searchInput ? searchInput.value.toLowerCase() : "";
-            let filtered = currentView === 'collections' ? allChats.filter(c => starredIds.has(c.id)) : allChats;
-            if (searchVal) filtered = filtered.filter(c => c.title.toLowerCase().includes(searchVal) || c.messages.some(m => m.text.toLowerCase().includes(searchVal)));
 
-            renderGrid(filtered);
+        function updateUI() { 
+            let filtered = [...allChats];
+            if (currentView === 'collections') filtered = filtered.filter(c => starredIds.has(c.id));
             
-            // Highlight nav
-            ['nav-library', 'nav-collections'].forEach(id => {
-                const btn = document.getElementById(id);
-                btn.classList.replace('text-violet-500', 'text-gray-500');
-            });
-            document.getElementById(`nav-${currentView}`).classList.replace('text-gray-500', 'text-violet-500');
+            const query = document.getElementById('searchInput').value.toLowerCase();
+            if (query) {
+                filtered = filtered.filter(c => c.title.toLowerCase().includes(query) || c.messages.some(m => m.text.toLowerCase().includes(query)));
+            }
+
+            document.getElementById('count-library').innerText = allChats.length;
+            document.getElementById('count-starred').innerText = starredIds.size;
+            renderGrid(filtered);
         }
 
         function reviveConversation() {
-            const c = allChats.find(x => x.id === activeChatId);
-            if (!c) return;
-            const fullText = c.messages.map(m => `${m.role.toUpperCase()}: ${m.text}`).join('\n\n');
-            const el = document.createElement('textarea');
-            el.value = fullText;
-            document.body.appendChild(el);
-            el.select();
-            document.execCommand('copy');
-            document.body.removeChild(el);
-            showToast("Copied to Clipboard");
+            const chat = allChats.find(c => c.id === activeChatId);
+            const context = JSON.stringify({ history: chat.messages.map(m => ({ role: m.role, content: m.text })) });
+            const ta = document.createElement("textarea"); ta.value = context; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
+            showToast("Context copied to clipboard");
         }
 
         function closeModal() { document.getElementById('detailModal').classList.add('hidden'); }
         function resetLicense() { localStorage.clear(); location.reload(); }
-        function showToast(m) { 
-            const t = document.getElementById('toast'); 
-            t.innerText = m; 
-            t.classList.replace('opacity-0', 'opacity-100'); 
-            setTimeout(() => t.classList.replace('opacity-100', 'opacity-0'), 2000); 
-        }
+        function showToast(m) { const t = document.getElementById('toast'); t.innerText = m; t.classList.replace('opacity-0', 'opacity-100'); t.classList.replace('translate-y-10', 'translate-y-0'); setTimeout(() => { t.classList.replace('opacity-100', 'opacity-0'); t.classList.replace('translate-y-0', 'translate-y-10'); }, 3000); }
         
-        window.onload = () => { 
-            if (localStorage.getItem('ck_v3_key')) activateKey(); 
-            lucide.createIcons(); 
-        };
+        document.getElementById('searchInput').addEventListener('input', updateUI);
+        window.onload = () => { if (localStorage.getItem('ck_v3_key')) activateKey(); lucide.createIcons(); };
     </script>
 </body>
 </html>
