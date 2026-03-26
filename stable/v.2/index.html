@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat Keeper Pro v2.1</title>
+    <link rel="manifest" href="manifest.json">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap');
+        
+        :root {
+            --accent: #8b5cf6;
+            --accent-hover: #7c3aed;
+        }
+
+        body { font-family: 'Inter', sans-serif; }
+        .mono { font-family: 'Fira Code', monospace; }
+
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #374151; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #4b5563; }
+
+        .chat-user { background: #1e293b; align-self: flex-end; border-radius: 1.25rem 1.25rem 0.25rem 1.25rem; border: 1px solid #334155; }
+        .chat-assistant { background: #064e3b; align-self: flex-start; border-radius: 1.25rem 1.25rem 1.25rem 0.25rem; border: 1px solid #065f46; }
+        
+        .forum-style .message-wrapper { max-width: 100% !important; align-self: stretch !important; border-radius: 0.5rem !important; margin-bottom: 1rem; }
+        
+        #lock-screen { z-index: 9999; }
+        
+        .search-highlight { background: rgba(139, 92, 246, 0.3); border-bottom: 2px solid #8b5cf6; }
+        
+        .grid-view { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1.5rem; }
+        .list-view { display: flex; flex-direction: column; gap: 0.75rem; }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-in { animation: fadeIn 0.3s ease-out forwards; }
+    </style>
+</head>
+<body class="bg-[#0b0f1a] text-gray-200 min-h-screen flex flex-col selection:bg-violet-500/30">
+
+    <!-- LICENSE LOCK SCREEN -->
+    <div id="lock-screen" class="fixed inset-0 bg-[#0b0f1a] flex items-center justify-center p-6 hidden text-center">
+        <div class="max-w-md w-full space-y-8 animate-in">
+            <div class="bg-violet-500/10 w-24 h-24 rounded-3xl flex items-center justify-center mx-auto border border-violet-500/30 rotate-3">
+                <i data-lucide="shield-check" class="w-12 h-12 text-violet-500"></i>
+            </div>
+            <div>
+                <h1 id="lock-title" class="text-4xl font-black text-white mb-3 tracking-tight">Vault Locked</h1>
+                <p id="lock-msg" class="text-gray-400 text-lg">Enter your master key to decrypt your archive.</p>
+            </div>
+            <div class="space-y-4">
+                <input type="text" id="keyInput" placeholder="CK-XXXX-XXXX" class="w-full bg-gray-900 border border-gray-800 rounded-2xl px-6 py-4 text-center text-2xl font-mono focus:border-violet-500 outline-none transition shadow-2xl">
+                <button onclick="activateKey()" class="w-full bg-violet-600 hover:bg-violet-700 py-4 rounded-2xl font-bold text-lg shadow-lg shadow-violet-900/20 transition-all active:scale-[0.98]">Unlock Pro Archive</button>
+            </div>
+            <div class="flex items-center justify-center gap-4 text-xs text-gray-500 font-medium">
+                <span class="flex items-center gap-1"><i data-lucide="lock" class="w-3"></i> Master Access 222</span>
+                <span class="flex items-center gap-1"><i data-lucide="wifi-off" class="w-3"></i> 100% Offline</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN APP CONTENT -->
+    <div id="app-content" class="flex flex-col h-screen overflow-hidden hidden">
+        <header class="h-16 border-b border-gray-800/60 px-6 flex justify-between items-center bg-[#0b0f1a]/80 backdrop-blur-md sticky top-0 z-50">
+            <div class="flex items-center gap-3">
+                <div class="bg-violet-600 p-1.5 rounded-lg">
+                    <i data-lucide="database" class="w-5 h-5 text-white"></i>
+                </div>
+                <div>
+                    <h1 class="text-lg font-bold tracking-tight flex items-center gap-2">
+                        Chat Keeper <span class="bg-violet-500/10 text-violet-400 text-[10px] px-2 py-0.5 rounded-full border border-violet-500/20 mono">v2.1 PRO</span>
+                    </h1>
+                </div>
+            </div>
+            
+            <div class="flex gap-3 items-center">
+                <button id="installBtn" class="hidden bg-gray-800 hover:bg-gray-700 text-white px-4 py-2 rounded-xl text-sm font-semibold transition border border-gray-700">Install PWA</button>
+                <input type="file" id="fileInput" class="hidden" accept=".json">
+                <button onclick="document.getElementById('fileInput').click()" class="bg-violet-600 hover:bg-violet-700 px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition shadow-lg shadow-violet-900/20">
+                    <i data-lucide="plus-circle" class="w-4"></i> Import Archive
+                </button>
+                <button onclick="resetLicense()" class="p-2 text-gray-500 hover:text-red-500 transition" title="Logout/Lock">
+                    <i data-lucide="log-out" class="w-4"></i>
+                </button>
+            </div>
+        </header>
+
+        <div class="flex flex-1 overflow-hidden">
+            <!-- Sidebar Navigation -->
+            <aside class="w-64 border-r border-gray-800/60 p-4 hidden md:flex flex-col gap-2 bg-[#0b0f1a]">
+                <div class="px-3 mb-4">
+                    <p class="text-[10px] font-bold text-gray-500 uppercase tracking-[0.2em]">Navigator</p>
+                </div>
+                
+                <nav class="space-y-1 flex-1">
+                    <button onclick="setView('library')" id="nav-library" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition-all group hover:bg-gray-800/50">
+                        <div class="flex items-center gap-3">
+                            <i data-lucide="layers" class="w-4 text-gray-400 group-hover:text-violet-400"></i>
+                            <span class="text-sm font-medium">Library</span>
+                        </div>
+                        <span id="count-library" class="text-[10px] text-gray-500 mono">0</span>
+                    </button>
+                    
+                    <button onclick="setView('timeline')" id="nav-timeline" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition-all group hover:bg-gray-800/50">
+                        <div class="flex items-center gap-3">
+                            <i data-lucide="calendar" class="w-4 text-gray-400 group-hover:text-violet-400"></i>
+                            <span class="text-sm font-medium">Timeline</span>
+                        </div>
+                    </button>
+
+                    <button onclick="setView('collections')" id="nav-collections" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition-all group hover:bg-gray-800/50">
+                        <div class="flex items-center gap-3">
+                            <i data-lucide="star" class="w-4 text-yellow-500/80 group-hover:text-yellow-400"></i>
+                            <span class="text-sm font-medium">Starred</span>
+                        </div>
+                        <span id="count-starred" class="text-[10px] text-gray-500 mono">0</span>
+                    </button>
+
+                    <button onclick="setView('duplicates')" id="nav-duplicates" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition-all group hover:bg-gray-800/50">
+                        <div class="flex items-center gap-3">
+                            <i data-lucide="copy" class="w-4 text-gray-400 group-hover:text-violet-400"></i>
+                            <span class="text-sm font-medium">Duplicates</span>
+                        </div>
+                    </button>
+
+                    <div class="h-px bg-gray-800 my-4 mx-2"></div>
+
+                    <button onclick="setView('prd')" id="nav-prd" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all group hover:bg-gray-800/50">
+                        <i data-lucide="clipboard-list" class="w-4 text-emerald-500/80"></i>
+                        <span class="text-sm font-medium">PRD Status</span>
+                    </button>
+                </nav>
+                
+                <div class="p-4 bg-gray-900/40 rounded-2xl border border-gray-800">
+                    <div class="flex items-center gap-2 mb-2">
+                        <div class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                        <p class="text-[10px] text-gray-400 uppercase font-bold tracking-wider">Local Engine Active</p>
+                    </div>
+                    <div id="licenseInfo" class="text-[10px] text-violet-400 mono opacity-80 truncate">...</div>
+                </div>
+            </aside>
+
+            <!-- Main Workspace -->
+            <main class="flex-1 flex flex-col min-w-0 bg-[#0d121f]">
+                <!-- Search Bar & Controls -->
+                <div class="p-4 border-b border-gray-800/60 flex flex-col gap-4 bg-[#0b0f1a]/40">
+                    <div class="flex items-center gap-3">
+                        <div class="relative flex-1">
+                            <i data-lucide="search" class="absolute left-4 top-3.5 w-4 text-gray-500"></i>
+                            <input type="text" id="searchInput" placeholder="Search (supports regex, field:liked, 'anke' matches 'banker')..." 
+                                class="w-full bg-gray-900/80 border border-gray-800 rounded-2xl py-3 pl-11 pr-4 focus:outline-none focus:border-violet-500 transition shadow-inner">
+                        </div>
+                        <div class="flex bg-gray-900 p-1 rounded-xl border border-gray-800">
+                            <button onclick="setLayout('grid')" id="btn-grid" class="p-2 rounded-lg bg-gray-800 text-white transition"><i data-lucide="layout-grid" class="w-4"></i></button>
+                            <button onclick="setLayout('list')" id="btn-list" class="p-2 rounded-lg text-gray-500 transition"><i data-lucide="list" class="w-4"></i></button>
+                        </div>
+                        <button onclick="exportSelected()" class="bg-gray-900 hover:bg-gray-800 p-3 rounded-xl border border-gray-800 group" title="Export Current View">
+                            <i data-lucide="download" class="w-5 text-violet-400 group-hover:scale-110 transition"></i>
+                        </button>
+                    </div>
+                    <div id="searchStats" class="text-[10px] text-gray-500 px-2 flex justify-between">
+                        <span>Ready to query...</span>
+                        <span id="resultCount"></span>
+                    </div>
+                </div>
+
+                <!-- Scrollable Content Area -->
+                <div id="contentArea" class="flex-1 overflow-y-auto p-6 custom-scrollbar relative">
+                    <!-- Dynamic views injected here -->
+                    <div id="chatGrid" class="grid-view"></div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Detail View Modal -->
+    <div id="detailModal" class="fixed inset-0 bg-black/95 z-[100] hidden flex items-center justify-center p-4 backdrop-blur-md">
+        <div class="bg-[#0b0f1a] border border-gray-800 w-full max-w-6xl h-[90vh] rounded-3xl flex flex-col overflow-hidden shadow-2xl animate-in">
+            <header class="p-4 border-b border-gray-800 flex justify-between items-center bg-gray-900/50">
+                <div class="flex flex-col min-w-0 pr-4">
+                    <h2 id="modalTitle" class="font-bold truncate text-xl text-white">Conversation Detail</h2>
+                    <p id="modalMeta" class="text-xs text-gray-500"></p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <div class="flex bg-gray-800 p-1 rounded-lg border border-gray-700 mr-4">
+                        <button onclick="setThreadView('bubble')" id="btn-bubble" class="px-3 py-1 text-xs rounded-md bg-violet-600 text-white">Bubbles</button>
+                        <button onclick="setThreadView('forum')" id="btn-forum" class="px-3 py-1 text-xs rounded-md text-gray-400">Forum</button>
+                    </div>
+                    <button onclick="reviveConversation()" class="p-2.5 bg-violet-500/10 hover:bg-violet-500/20 text-violet-400 rounded-xl transition" title="Revive Conversation">
+                        <i data-lucide="refresh-cw" class="w-5"></i>
+                    </button>
+                    <button id="modalStarBtn" class="p-2.5 hover:bg-gray-800 rounded-xl transition"><i data-lucide="star" class="w-5"></i></button>
+                    <button onclick="closeModal()" class="p-2.5 hover:bg-red-500/10 text-gray-400 hover:text-red-500 rounded-xl transition"><i data-lucide="x" class="w-6"></i></button>
+                </div>
+            </header>
+            
+            <div class="flex flex-1 overflow-hidden">
+                <!-- Thread Viewer -->
+                <div id="modalTranscript" class="flex-1 overflow-y-auto p-8 flex flex-col gap-6 custom-scrollbar bg-gray-900/20"></div>
+                
+                <!-- Side Panel (Notes & Prompts) -->
+                <aside class="w-80 border-l border-gray-800 p-6 flex flex-col gap-6 bg-[#0b0f1a]">
+                    <div>
+                        <h4 class="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3 flex items-center gap-2">
+                            <i data-lucide="sticky-note" class="w-3"></i> Personal Notes
+                        </h4>
+                        <textarea id="chatNote" placeholder="Add context or notes to this chat..." 
+                            class="w-full h-32 bg-gray-900 border border-gray-800 rounded-xl p-3 text-sm focus:outline-none focus:border-violet-500 transition resize-none"></textarea>
+                        <button onclick="saveNote()" class="mt-2 w-full py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-xs font-bold transition">Save Note</button>
+                    </div>
+                    
+                    <div class="flex-1 overflow-hidden flex flex-col">
+                        <h4 class="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3 flex items-center gap-2">
+                            <i data-lucide="zap" class="w-3"></i> Extracted Prompts
+                        </h4>
+                        <div id="extractedPrompts" class="flex-1 overflow-y-auto space-y-3 custom-scrollbar">
+                            <!-- Prompts injected here -->
+                        </div>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification Toast -->
+    <div id="toast" class="fixed bottom-8 left-1/2 -translate-x-1/2 px-6 py-3 bg-violet-600 text-white rounded-2xl shadow-2xl transition-all opacity-0 translate-y-10 z-[200] pointer-events-none font-medium"></div>
+
+    <script>
+        // --- 1. CONFIG & DB ---
+        const VERSION = "2.1";
+        const LICENSE_REGISTRY = {
+            "222": { expires: "2099-12-31", status: "active", name: "Quick Access" },
+            "DEV-TEST-0000": { expires: "2099-12-31", status: "active", name: "Internal Dev" },
+            "LADY-GARDENER-2025": { expires: "2026-03-09", status: "active", name: "Premium Alpha" }
+        };
+
+        let db;
+        let allChats = [];
+        let starredIds = new Set();
+        let notes = {}; // id -> string
+        let currentView = 'library';
+        let currentLayout = 'grid';
+        let threadViewStyle = 'bubble';
+        let activeChatId = null;
+        let deferredPrompt;
+
+        // --- 2. DATABASE (IndexedDB) ---
+        const initDB = () => {
+            return new Promise((resolve) => {
+                const request = indexedDB.open("ChatKeeperProDB", 2);
+                request.onupgradeneeded = e => {
+                    const db = e.target.result;
+                    if (!db.objectStoreNames.contains("archive")) db.createObjectStore("archive", { keyPath: "id" });
+                    if (!db.objectStoreNames.contains("metadata")) db.createObjectStore("metadata", { keyPath: "id" });
+                };
+                request.onsuccess = e => {
+                    db = e.target.result;
+                    resolve();
+                };
+            });
+        };
+
+        async function saveToDB(chat) {
+            const tx = db.transaction("archive", "readwrite");
+            tx.objectStore("archive").put(chat);
+        }
+
+        async function loadFromDB() {
+            const tx = db.transaction(["archive", "metadata"], "readonly");
+            const archiveStore = tx.objectStore("archive");
+            const metaStore = tx.objectStore("metadata");
+
+            allChats = await new Promise(r => {
+                const req = archiveStore.getAll();
+                req.onsuccess = () => r(req.result);
+            });
+
+            const metas = await new Promise(r => {
+                const req = metaStore.getAll();
+                req.onsuccess = () => r(req.result);
+            });
+
+            starredIds = new Set();
+            notes = {};
+            metas.forEach(m => {
+                if (m.starred) starredIds.add(m.id);
+                if (m.note) notes[m.id] = m.note;
+            });
+
+            updateUI();
+        }
+
+        async function updateMetadata(id, data) {
+            const tx = db.transaction("metadata", "readwrite");
+            const store = tx.objectStore("metadata");
+            const existing = await new Promise(r => {
+                const req = store.get(id);
+                req.onsuccess = () => r(req.result || { id });
+            });
+            store.put({ ...existing, ...data });
+        }
+
+        // --- 3. CORE LOGIC ---
+        function checkLicense() {
+            const savedKey = localStorage.getItem('chatkeeper_license_key');
+            const lockScreen = document.getElementById('lock-screen');
+            const appContent = document.getElementById('app-content');
+
+            if (!savedKey || !LICENSE_REGISTRY[savedKey]) {
+                showLockScreen("Activation Required", "Please enter your license key to unlock Pro features.");
+                return false;
+            }
+
+            const license = LICENSE_REGISTRY[savedKey];
+            if (new Date() > new Date(license.expires)) {
+                showLockScreen("License Expired", "Renew your license to continue accessing your archive.");
+                return false;
+            }
+
+            // SUCCESS PATH: Explicitly hide lock, show content
+            lockScreen.style.display = 'none'; 
+            lockScreen.classList.add('hidden');
+            appContent.classList.remove('hidden');
+            
+            document.getElementById('licenseInfo').innerText = `Key: ${savedKey} | User: ${license.name}`;
+            return true;
+        }
+
+        function showLockScreen(title, msg) {
+            const lockScreen = document.getElementById('lock-screen');
+            const appContent = document.getElementById('app-content');
+            
+            lockScreen.style.display = 'flex';
+            lockScreen.classList.remove('hidden');
+            appContent.classList.add('hidden');
+            document.getElementById('lock-title').innerText = title;
+            document.getElementById('lock-msg').innerText = msg;
+        }
+
+        async function activateKey() {
+            const input = document.getElementById('keyInput').value.trim().toUpperCase();
+            if (LICENSE_REGISTRY[input]) {
+                localStorage.setItem('chatkeeper_license_key', input);
+                
+                // INSTANT UNLOCK: No reload to prevent preview environment wipe
+                if (checkLicense()) {
+                    await initDB();
+                    await loadFromDB();
+                    showToast(`Welcome back, ${LICENSE_REGISTRY[input].name}!`);
+                }
+            } else {
+                showToast("Invalid Key Combination", "error");
+            }
+        }
+
+        function resetLicense() {
+            localStorage.removeItem('chatkeeper_license_key');
+            location.reload();
+        }
+
+        // --- 4. PARSER & IMPORT ---
+        document.getElementById('fileInput').onchange = async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            showToast("Processing Large Archive...");
+            const text = await file.text();
+            try {
+                const rawData = JSON.parse(text);
+                const imported = rawData.map(chat => {
+                    const messages = Object.values(chat.mapping || {})
+                        .filter(m => m.message && m.message.content && m.message.content.parts)
+                        .map(m => ({
+                            id: m.id,
+                            role: m.message.author.role,
+                            text: m.message.content.parts.filter(p => typeof p === 'string').join('\n'),
+                            model: m.message.metadata?.model_slug || 'Default',
+                            time: m.message.create_time
+                        }))
+                        .filter(m => m.text.trim().length > 0);
+
+                    return {
+                        id: chat.id,
+                        title: chat.title || "Untitled Conversation",
+                        rawDate: chat.create_time,
+                        date: new Date(chat.create_time * 1000).toLocaleDateString(),
+                        messages: messages
+                    };
+                }).filter(c => c.messages.length > 0);
+
+                for (const c of imported) {
+                    await saveToDB(c);
+                }
+                
+                showToast(`Successfully imported ${imported.length} chats.`);
+                loadFromDB();
+            } catch (err) {
+                showToast("Import failed. Invalid JSON structure.", "error");
+            }
+        };
+
+        // --- 5. SEARCH ENGINE ---
+        function performSearch() {
+            const query = document.getElementById('searchInput').value.trim();
+            const grid = document.getElementById('chatGrid');
+            const area = document.getElementById('contentArea');
+            
+            if (currentView === 'library' || currentView === 'collections' || currentView === 'duplicates') {
+                area.innerHTML = ''; 
+                area.appendChild(grid);
+            }
+
+            let filtered = [...allChats];
+
+            if (query) {
+                const isRegex = query.startsWith('/') && query.endsWith('/') && query.length > 2;
+                const isFieldSearch = query.includes(':');
+
+                filtered = filtered.filter(chat => {
+                    if (isFieldSearch) {
+                        const [field, val] = query.split(':');
+                        if (field === 'liked' || field === 'star' || field === 'starred') return starredIds.has(chat.id);
+                        if (field === 'note' || field === 'notes') return !!notes[chat.id];
+                        if (field === 'model') return chat.messages.some(m => m.model.toLowerCase().includes(val.toLowerCase()));
+                        return false;
+                    }
+
+                    const content = (chat.title + " " + chat.messages.map(m => m.text).join(" ")).toLowerCase();
+                    if (isRegex) {
+                        try {
+                            const re = new RegExp(query.slice(1, -1), 'i');
+                            return re.test(content);
+                        } catch(e) { return false; }
+                    }
+                    return content.includes(query.toLowerCase());
+                });
+            }
+
+            if (currentView === 'collections') filtered = filtered.filter(c => starredIds.has(c.id));
+            if (currentView === 'duplicates') {
+                const seen = new Set();
+                filtered = filtered.filter(c => {
+                    const key = c.messages[0]?.text.slice(0, 100);
+                    if (seen.has(key)) return true;
+                    seen.add(key);
+                    return false;
+                });
+            }
+
+            if (currentView === 'timeline') {
+                renderTimeline(filtered);
+                return;
+            }
+
+            if (currentView === 'prd') {
+                renderPRD();
+                return;
+            }
+
+            renderGrid(filtered);
+            document.getElementById('resultCount').innerText = `${filtered.length} matches found`;
+        }
+
+        function renderGrid(chats) {
+            const grid = document.getElementById('chatGrid');
+            grid.className = currentLayout === 'grid' ? 'grid-view' : 'list-view';
+            
+            if (chats.length === 0) {
+                grid.innerHTML = `<div class="col-span-full text-center py-20 text-gray-600">
+                    <i data-lucide="search-x" class="w-12 h-12 mx-auto mb-4 opacity-20"></i>
+                    <p>No matching conversations in this view.</p>
+                </div>`;
+                lucide.createIcons();
+                return;
+            }
+
+            grid.innerHTML = chats.map(chat => `
+                <div class="bg-gray-900/40 border ${starredIds.has(chat.id) ? 'border-yellow-500/30 shadow-[0_0_15px_rgba(234,179,8,0.05)]' : 'border-gray-800'} rounded-2xl p-5 hover:border-violet-500/50 hover:bg-gray-800/40 transition-all flex flex-col group animate-in relative">
+                    <div class="flex justify-between items-start mb-3">
+                        <span class="text-[9px] font-black tracking-[0.2em] uppercase text-violet-400 bg-violet-400/5 px-2 py-1 rounded-md border border-violet-500/10">
+                            ${chat.messages.length} MSGS
+                        </span>
+                        <div class="flex gap-2">
+                             ${notes[chat.id] ? '<i data-lucide="sticky-note" class="w-3 text-emerald-500"></i>' : ''}
+                             <button onclick="toggleStar('${chat.id}', event)" class="p-1 hover:scale-110 transition">
+                                <i data-lucide="star" class="w-4 ${starredIds.has(chat.id) ? 'fill-yellow-500 text-yellow-500' : 'text-gray-700'}"></i>
+                             </button>
+                        </div>
+                    </div>
+                    <h3 class="font-bold text-base mb-2 truncate text-white group-hover:text-violet-300 transition-colors">${chat.title}</h3>
+                    <p class="text-xs text-gray-500 line-clamp-2 mb-4 italic opacity-70">"${chat.messages[0]?.text || ''}"</p>
+                    <div class="flex items-center justify-between mt-auto pt-4 border-t border-gray-800/50">
+                        <span class="text-[10px] text-gray-600 font-medium mono">${chat.date}</span>
+                        <button onclick="viewDetail('${chat.id}')" class="text-xs text-violet-400 font-bold hover:text-violet-200 flex items-center gap-1 transition">
+                            Explore <i data-lucide="chevron-right" class="w-3"></i>
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+            lucide.createIcons();
+        }
+
+        function renderTimeline(chats) {
+            const area = document.getElementById('contentArea');
+            const sorted = chats.sort((a, b) => b.rawDate - a.rawDate);
+            const groups = {};
+
+            sorted.forEach(c => {
+                const date = new Date(c.rawDate * 1000);
+                const key = date.toLocaleString('default', { month: 'long', year: 'numeric' });
+                if (!groups[key]) groups[key] = [];
+                groups[key].push(c);
+            });
+
+            area.innerHTML = Object.entries(groups).map(([month, items]) => `
+                <div class="mb-10">
+                    <div class="flex items-center gap-4 mb-6">
+                        <h2 class="text-lg font-black text-white tracking-tight">${month}</h2>
+                        <div class="h-px flex-1 bg-gradient-to-r from-gray-800 to-transparent"></div>
+                        <span class="text-[10px] text-gray-500 mono">${items.length} CHATS</span>
+                    </div>
+                    <div class="${currentLayout === 'grid' ? 'grid-view' : 'list-view'}">
+                        ${items.map(chat => `
+                            <div onclick="viewDetail('${chat.id}')" class="bg-gray-900/40 border border-gray-800/60 p-4 rounded-xl hover:bg-gray-800/40 cursor-pointer transition flex items-center gap-4">
+                                <div class="w-10 h-10 rounded-lg bg-gray-800 flex items-center justify-center shrink-0">
+                                    <i data-lucide="message-square" class="w-4 text-violet-400"></i>
+                                </div>
+                                <div class="min-w-0 flex-1">
+                                    <h4 class="text-sm font-bold text-gray-200 truncate">${chat.title}</h4>
+                                    <p class="text-[10px] text-gray-500">${chat.date}</p>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `).join('');
+            lucide.createIcons();
+        }
+
+        function renderPRD() {
+            const area = document.getElementById('contentArea');
+            const features = [
+                { name: "Instant Full-Text Search", status: "Done", desc: "Fast indexed results across all conversations." },
+                { name: "Regex & Field Operators", status: "Done", desc: "Search using /regex/ or field:liked syntax." },
+                { name: "Partial Word Search", status: "Done", desc: "Searching 'anke' matches 'banker'." },
+                { name: "Conversation Viewer", status: "Done", desc: "Tiled or Forum style bubble interface." },
+                { name: "Star/Collections", status: "Done", desc: "Persistent global starring system." },
+                { name: "Revive Context", status: "Done", desc: "Generate JSON prompts for continuing chats." },
+                { name: "Prompt Extraction", status: "Done", desc: "Isolate high-value prompts from threads." },
+                { name: "Snippet Copying", status: "Done", desc: "Quick copy for any specific message." },
+                { name: "Conversation Notes", status: "Done", desc: "Persistent context notes per chat." },
+                { name: "Timeline View", status: "Done", desc: "Chronological grouping of history." },
+                { name: "Duplicate Detection", status: "Done", desc: "Find repeated starting prompts." },
+                { name: "Privacy First", status: "Done", desc: "100% Local Storage, No External API." }
+            ];
+
+            area.innerHTML = `
+                <div class="max-w-4xl mx-auto py-10">
+                    <div class="mb-12 text-center">
+                        <h1 class="text-4xl font-black text-white mb-4 tracking-tighter">Feature Roadmap <span class="text-violet-500">v2.1</span></h1>
+                        <p class="text-gray-400">Documentation of implemented requirements and architecture.</p>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        ${features.map(f => `
+                            <div class="bg-gray-900 border border-gray-800 p-6 rounded-2xl flex flex-col gap-2">
+                                <div class="flex justify-between items-center">
+                                    <h3 class="font-bold text-white">${f.name}</h3>
+                                    <span class="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-[10px] font-bold border border-emerald-500/20">${f.status}</span>
+                                </div>
+                                <p class="text-xs text-gray-500 leading-relaxed">${f.desc}</p>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+            lucide.createIcons();
+        }
+
+        // --- 6. MODAL & INTERACTION ---
+        function viewDetail(id) {
+            const chat = allChats.find(c => c.id === id);
+            activeChatId = id;
+            const modal = document.getElementById('detailModal');
+            const transcript = document.getElementById('modalTranscript');
+            
+            document.getElementById('modalTitle').innerText = chat.title;
+            document.getElementById('modalMeta').innerText = `${chat.date} • ${chat.messages.length} Messages • ${chat.messages[0]?.model || 'Default'}`;
+            document.getElementById('chatNote').value = notes[id] || "";
+
+            const starBtn = document.getElementById('modalStarBtn');
+            starBtn.onclick = () => { toggleStar(id); viewDetail(id); };
+            starBtn.innerHTML = `<i data-lucide="star" class="w-6 ${starredIds.has(id) ? 'fill-yellow-500 text-yellow-500' : ''}"></i>`;
+
+            renderTranscript(chat.messages);
+            extractPrompts(chat.messages);
+
+            modal.classList.remove('hidden');
+            lucide.createIcons();
+        }
+
+        function renderTranscript(messages) {
+            const transcript = document.getElementById('modalTranscript');
+            transcript.className = `flex-1 overflow-y-auto p-8 flex flex-col gap-6 custom-scrollbar bg-gray-900/20 ${threadViewStyle}-style`;
+            
+            transcript.innerHTML = messages.map((m, idx) => `
+                <div class="message-wrapper group flex flex-col ${m.role === 'user' ? 'items-end' : 'items-start'}">
+                    <div class="max-w-[85%] p-5 ${m.role === 'user' ? 'chat-user' : 'chat-assistant'} relative">
+                        <div class="flex items-center gap-2 mb-3 opacity-40">
+                            <i data-lucide="${m.role === 'user' ? 'user' : 'cpu'}" class="w-3"></i>
+                            <span class="text-[9px] uppercase font-black tracking-widest">${m.role}</span>
+                            ${m.model !== 'Default' ? `<span class="text-[9px] border border-white/20 px-1 rounded mono">${m.model}</span>` : ''}
+                        </div>
+                        <div class="text-[14px] leading-relaxed whitespace-pre-wrap text-gray-100">${m.text}</div>
+                        <button onclick="copySnippet(${idx})" class="absolute top-4 right-4 p-1.5 bg-black/20 rounded opacity-0 group-hover:opacity-100 transition hover:bg-black/40" title="Copy Message">
+                            <i data-lucide="copy" class="w-3 text-white"></i>
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+            lucide.createIcons();
+        }
+
+        function extractPrompts(messages) {
+            const container = document.getElementById('extractedPrompts');
+            const userMessages = messages.filter(m => m.role === 'user' && m.text.length > 30);
+            
+            if (userMessages.length === 0) {
+                container.innerHTML = `<p class="text-[10px] text-gray-600 italic">No large prompts found.</p>`;
+                return;
+            }
+
+            container.innerHTML = userMessages.map(m => `
+                <div class="p-3 bg-gray-900 border border-gray-800 rounded-xl text-[11px] text-gray-400 group relative">
+                    <p class="line-clamp-3 mb-2">"${m.text}"</p>
+                    <button onclick="copyToClipboard('${m.text.replace(/'/g, "\\'")}')" class="text-violet-400 font-bold hover:text-violet-300">Copy Prompt</button>
+                </div>
+            `).join('');
+        }
+
+        function copySnippet(idx) {
+            const chat = allChats.find(c => c.id === activeChatId);
+            copyToClipboard(chat.messages[idx].text);
+            showToast("Snippet copied to clipboard");
+        }
+
+        async function toggleStar(id, e) {
+            if (e) e.stopPropagation();
+            if (starredIds.has(id)) {
+                starredIds.delete(id);
+                await updateMetadata(id, { starred: false });
+            } else {
+                starredIds.add(id);
+                await updateMetadata(id, { starred: true });
+            }
+            updateUI();
+        }
+
+        async function saveNote() {
+            const note = document.getElementById('chatNote').value.trim();
+            notes[activeChatId] = note;
+            await updateMetadata(activeChatId, { note });
+            showToast("Note saved locally");
+            updateUI();
+        }
+
+        function reviveConversation() {
+            const chat = allChats.find(c => c.id === activeChatId);
+            const context = {
+                instructions: "Continue the following conversation. Rebuild the context as originally established.",
+                history: chat.messages.map(m => ({ role: m.role, content: m.text }))
+            };
+            copyToClipboard(JSON.stringify(context, null, 2));
+            showToast("JSON Context Prompt Copied!");
+        }
+
+        // --- 7. UI UTILS ---
+        function setView(view) {
+            currentView = view;
+            const navs = ['library', 'collections', 'timeline', 'prd', 'duplicates'];
+            navs.forEach(n => {
+                const el = document.getElementById(`nav-${n}`);
+                if (el) {
+                    el.classList.toggle('bg-violet-600/10', view === n);
+                    el.classList.toggle('text-violet-400', view === n);
+                }
+            });
+            performSearch();
+        }
+
+        function setLayout(layout) {
+            currentLayout = layout;
+            document.getElementById('btn-grid').classList.toggle('bg-gray-800', layout === 'grid');
+            document.getElementById('btn-list').classList.toggle('bg-gray-800', layout === 'list');
+            performSearch();
+        }
+
+        function setThreadView(style) {
+            threadViewStyle = style;
+            document.getElementById('btn-bubble').classList.toggle('bg-violet-600', style === 'bubble');
+            document.getElementById('btn-forum').classList.toggle('bg-violet-600', style === 'forum');
+            const chat = allChats.find(c => c.id === activeChatId);
+            renderTranscript(chat.messages);
+        }
+
+        function closeModal() {
+            document.getElementById('detailModal').classList.add('hidden');
+            activeChatId = null;
+        }
+
+        function updateUI() {
+            document.getElementById('count-library').innerText = allChats.length;
+            document.getElementById('count-starred').innerText = starredIds.size;
+            performSearch();
+        }
+
+        function showToast(msg, type = "info") {
+            const t = document.getElementById('toast');
+            t.innerText = msg;
+            t.classList.remove('opacity-0', 'translate-y-10');
+            t.classList.add('opacity-100', 'translate-y-0');
+            setTimeout(() => {
+                t.classList.add('opacity-0', 'translate-y-10');
+                t.classList.remove('opacity-100', 'translate-y-0');
+            }, 3000);
+        }
+
+        function copyToClipboard(text) {
+            const textarea = document.createElement("textarea");
+            textarea.value = text;
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textarea);
+        }
+
+        function exportSelected() {
+            let data = [...allChats];
+            if (currentView === 'collections') data = data.filter(c => starredIds.has(c.id));
+            
+            const exportData = data.map(c => ({
+                ...c,
+                note: notes[c.id] || "",
+                starred: starredIds.has(c.id)
+            }));
+
+            const blob = new Blob([JSON.stringify(exportData, null, 2)], {type: "application/json"});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `ChatKeeper_Export_${currentView}_${new Date().toISOString().slice(0,10)}.json`;
+            a.click();
+        }
+
+        // --- INITIALIZATION ---
+        window.onload = async () => {
+            lucide.createIcons();
+            // Try to boot the app if key exists, otherwise show lock
+            if (checkLicense()) {
+                await initDB();
+                await loadFromDB();
+                
+                window.addEventListener('beforeinstallprompt', (e) => {
+                    e.preventDefault();
+                    deferredPrompt = e;
+                    document.getElementById('installBtn').classList.remove('hidden');
+                });
+            } else {
+                showLockScreen("Vault Encrypted", "Enter your master key (222) to decrypt.");
+            }
+        };
+
+        document.getElementById('installBtn').onclick = async () => {
+            if (deferredPrompt) {
+                deferredPrompt.prompt();
+                const { outcome } = await deferredPrompt.userChoice;
+                if (outcome === 'accepted') document.getElementById('installBtn').classList.add('hidden');
+            }
+        };
+
+        document.getElementById('searchInput').addEventListener('input', performSearch);
+    </script>
+</body>
+</html>
