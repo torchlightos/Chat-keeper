@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Chat Keeper v4.7</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
+        :root { --accent: #8b5cf6; }
+        body { font-family: 'Inter', sans-serif; background: #0b0f1a; color: #e5e7eb; -webkit-tap-highlight-color: transparent; }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #374151; border-radius: 10px; }
+        .nav-drawer { transform: translateX(-100%); transition: transform 0.2s ease-out; }
+        .nav-drawer.open { transform: translateX(0); }
+        .chat-user { background: #1e293b; border-radius: 1.25rem 1.25rem 0.25rem 1.25rem; border: 1px solid #334155; padding: 1rem; }
+        .chat-assistant { background: #064e3b; border-radius: 1.25rem 1.25rem 1.25rem 0.25rem; border: 1px solid #065f46; padding: 1rem; }
+        .card-starred { border-color: rgba(234, 179, 8, 0.4) !important; background: rgba(234, 179, 8, 0.05) !important; }
+        .grid-view { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; }
+        /* Prevent layout shift */
+        #mainGrid { min-height: 200px; }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col overflow-hidden selection:bg-violet-500/30">
+
+    <!-- LOCK SCREEN -->
+    <div id="lockScreen" class="fixed inset-0 bg-[#0b0f1a] z-[500] flex flex-col items-center justify-center p-6 text-center">
+        <div class="max-w-xs w-full space-y-8">
+            <div class="w-16 h-16 bg-violet-600/10 rounded-2xl border border-violet-500/30 flex items-center justify-center mx-auto">
+                <i data-lucide="shield-check" class="w-8 text-violet-500"></i>
+            </div>
+            <h1 class="text-3xl font-extrabold text-white">Vault Locked</h1>
+            <input type="password" id="passInput" placeholder="Pass: 222" class="w-full bg-gray-900 border border-gray-800 p-5 rounded-2xl text-center text-2xl outline-none focus:border-violet-500">
+            <button onclick="unlock()" class="w-full bg-violet-600 hover:bg-violet-700 p-5 rounded-2xl font-extrabold text-lg shadow-lg active:scale-95 transition-all">Unlock v4.7</button>
+            <button onclick="resetApp()" class="text-xs text-gray-600 underline">Wipe and Reset Database</button>
+        </div>
+    </div>
+
+    <!-- NAV DRAWER -->
+    <div id="navOverlay" onclick="toggleMenu()" class="fixed inset-0 bg-black/60 z-[100] hidden backdrop-blur-sm"></div>
+    <aside id="navDrawer" class="nav-drawer fixed top-0 left-0 h-full w-64 bg-[#0b0f1a] border-r border-gray-800 z-[101] p-6 flex flex-col gap-6">
+        <h2 class="text-xl font-bold flex items-center gap-3"><i data-lucide="database" class="w-5 text-violet-500"></i> Archive</h2>
+        <nav class="space-y-1">
+            <button onclick="setView('library')" class="w-full flex items-center justify-between p-3 rounded-xl hover:bg-gray-800 transition font-medium">
+                <div class="flex items-center gap-3"><i data-lucide="layers" class="w-4"></i> Library</div>
+                <span id="count-library" class="text-[10px] text-gray-500">0</span>
+            </button>
+            <button onclick="setView('starred')" class="w-full flex items-center justify-between p-3 rounded-xl hover:bg-gray-800 transition font-medium text-yellow-500">
+                <div class="flex items-center gap-3"><i data-lucide="star" class="w-4"></i> Starred</div>
+                <span id="count-starred" class="text-[10px] text-gray-500">0</span>
+            </button>
+            <button onclick="setView('timeline')" class="w-full flex items-center p-3 rounded-xl hover:bg-gray-800 transition font-medium gap-3">
+                <i data-lucide="calendar" class="w-4"></i> Timeline
+            </button>
+        </nav>
+    </aside>
+
+    <!-- MAIN APP UI -->
+    <div id="app" class="hidden flex flex-col h-screen overflow-hidden">
+        <header class="h-16 border-b border-gray-800 flex items-center justify-between px-4 bg-[#0b0f1a]">
+            <div class="flex items-center gap-3">
+                <button onclick="toggleMenu()" class="p-2 hover:bg-gray-800 rounded-xl transition"><i data-lucide="menu"></i></button>
+                <span id="viewTitle" class="font-bold">Library</span>
+            </div>
+            <div class="flex items-center gap-2">
+                <input type="file" id="fileInput" class="hidden" accept=".json">
+                <button onclick="document.getElementById('fileInput').click()" class="bg-violet-600 p-2 rounded-lg" title="Import"><i data-lucide="plus"></i></button>
+            </div>
+        </header>
+
+        <!-- Search & Export Bar -->
+        <div class="p-4 border-b border-gray-800 flex items-center gap-3">
+            <div class="relative flex-1">
+                <i data-lucide="search" class="absolute left-3.5 top-3 w-4 text-gray-500"></i>
+                <input type="text" id="search" placeholder="Search..." class="w-full bg-gray-900 border border-gray-800 py-2 pl-10 pr-4 rounded-xl outline-none focus:border-violet-500 text-sm">
+            </div>
+            <div class="relative">
+                <button onclick="toggleExportMenu()" class="bg-gray-800 p-2 rounded-xl border border-gray-700 text-violet-400">
+                    <i data-lucide="download" class="w-5"></i>
+                </button>
+                <div id="exportMenu" class="hidden absolute right-0 top-full mt-2 w-48 bg-gray-900 border border-gray-800 rounded-xl shadow-2xl overflow-hidden z-[100]">
+                    <button onclick="exportAs('json')" class="w-full text-left p-3 text-xs hover:bg-gray-800 border-b border-gray-800">Archive (JSON)</button>
+                    <button onclick="exportAs('txt')" class="w-full text-left p-3 text-xs hover:bg-gray-800 border-b border-gray-800">Readable (TXT)</button>
+                    <button onclick="exportAs('md')" class="w-full text-left p-3 text-xs hover:bg-gray-800 font-bold text-violet-400">NotebookLM (MD)</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="content" class="flex-1 overflow-y-auto p-4 custom-scrollbar bg-[#0d121f]">
+            <div id="mainGrid" class="grid-view"></div>
+            <div id="loadMore" class="py-10 text-center hidden">
+                <span class="text-xs text-gray-600 italic">Only showing the top 100 items for performance. Search to find others.</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- DETAIL MODAL -->
+    <div id="modal" class="fixed inset-0 bg-black/95 z-[300] hidden flex flex-col">
+        <header class="h-16 border-b border-gray-800 flex items-center justify-between px-4">
+            <h2 id="mTitle" class="truncate font-bold text-sm">Conversation</h2>
+            <div class="flex items-center gap-2">
+                <button id="mStar" class="p-2"><i data-lucide="star"></i></button>
+                <button onclick="closeModal()" class="p-2"><i data-lucide="x"></i></button>
+            </div>
+        </header>
+        <div id="mBody" class="flex-1 overflow-y-auto p-4 space-y-6 flex flex-col custom-scrollbar"></div>
+    </div>
+
+    <!-- TOAST -->
+    <div id="toast" class="fixed bottom-8 left-1/2 -translate-x-1/2 bg-violet-600 px-6 py-2 rounded-full shadow-2xl opacity-0 transition-opacity pointer-events-none z-[400] text-sm font-bold">
+        <span id="tMsg">Ready</span>
+    </div>
+
+    <script>
+        let db;
+        let indexTable = [];
+        let currentView = 'library';
+
+        const initDB = () => new Promise((resolve, reject) => {
+            const req = indexedDB.open("ChatKeeper_v4_7", 1);
+            req.onupgradeneeded = e => {
+                const d = e.target.result;
+                d.createObjectStore("index", { keyPath: "id" });
+                d.createObjectStore("vault", { keyPath: "id" });
+            };
+            req.onsuccess = e => { db = e.target.result; resolve(); };
+            req.onerror = e => reject(e);
+        });
+
+        async function unlock() {
+            if (document.getElementById('passInput').value === '222') {
+                try {
+                    await initDB();
+                    localStorage.setItem('ck_v47_auth', 'true');
+                    document.getElementById('lockScreen').style.display = 'none';
+                    document.getElementById('app').classList.remove('hidden');
+                    loadIndex();
+                } catch (err) { alert("DB Error: Use Reset"); }
+            }
+        }
+
+        async function loadIndex() {
+            if (!db) return;
+            const tx = db.transaction("index", "readonly");
+            const req = tx.objectStore("index").getAll();
+            req.onsuccess = () => {
+                indexTable = req.result.sort((a,b) => (b.time || 0) - (a.time || 0));
+                render();
+            };
+        }
+
+        // --- B-TRIEVE IMPORT ---
+        document.getElementById('fileInput').onchange = e => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = async event => {
+                showToast("Analyzing file...");
+                try {
+                    const raw = JSON.parse(event.target.result);
+                    let i = 0;
+                    
+                    const processBatch = () => {
+                        const limit = Math.min(i + 100, raw.length);
+                        const txIndex = db.transaction("index", "readwrite");
+                        const txVault = db.transaction("vault", "readwrite");
+
+                        for (; i < limit; i++) {
+                            const c = raw[i];
+                            const msgs = Object.values(c.mapping || {}).filter(m => m.message?.content?.parts).map(m => ({
+                                role: m.message.author.role,
+                                text: m.message.content.parts.join('\n')
+                            }));
+                            if (msgs.length === 0) continue;
+
+                            txIndex.objectStore("index").put({
+                                id: c.id,
+                                title: c.title || "Untitled",
+                                date: new Date(c.create_time * 1000).toLocaleDateString(),
+                                time: c.create_time,
+                                msgCount: msgs.length,
+                                starred: false
+                            });
+                            txVault.objectStore("vault").put({ id: c.id, msgs });
+                        }
+
+                        if (i < raw.length) {
+                            showToast(`Saved ${i} / ${raw.length}...`);
+                            setTimeout(processBatch, 1);
+                        } else {
+                            showToast("Import Successful!");
+                            loadIndex();
+                        }
+                    };
+                    processBatch();
+                } catch (err) { showToast("Invalid JSON"); }
+            };
+            reader.readAsText(file);
+        };
+
+        // --- PERFORMANCE RENDERING ---
+        function render() {
+            try {
+                const query = document.getElementById('search').value.toLowerCase();
+                const filtered = indexTable.filter(item => {
+                    const matchSearch = item.title.toLowerCase().includes(query);
+                    const matchView = currentView !== 'starred' || item.starred;
+                    return matchSearch && matchView;
+                });
+
+                document.getElementById('count-library').innerText = indexTable.length;
+                document.getElementById('count-starred').innerText = indexTable.filter(i => i.starred).length;
+
+                // VIRTUAL LIMIT: Only render top 100 to prevent Black Screen crash
+                const displayLimit = 100;
+                const itemsToDraw = filtered.slice(0, displayLimit);
+                document.getElementById('loadMore').classList.toggle('hidden', filtered.length <= displayLimit);
+
+                const grid = document.getElementById('mainGrid');
+                if (currentView === 'timeline') renderTimeline(itemsToDraw);
+                else renderCards(itemsToDraw);
+                lucide.createIcons();
+            } catch (e) { console.error("Render error:", e); }
+        }
+
+        function renderCards(items) {
+            const grid = document.getElementById('mainGrid');
+            if (items.length === 0) { grid.innerHTML = `<div class="col-span-full py-20 text-center opacity-30 text-sm">No items matching view</div>`; return; }
+            grid.innerHTML = items.map(c => `
+                <div id="card-${c.id}" onclick="openChat('${c.id}')" class="bg-gray-900/40 border ${c.starred ? 'card-starred border-yellow-500/40' : 'border-gray-800'} p-5 rounded-2xl flex flex-col relative cursor-pointer group">
+                    <div class="flex justify-between items-start mb-3">
+                        <span class="text-[9px] font-bold text-violet-400 uppercase tracking-widest">${c.msgCount || 0} MSGS</span>
+                        <button onclick="event.stopPropagation(); toggleStar('${c.id}')" class="p-1 -m-1">
+                            <i data-lucide="star" class="w-4 ${c.starred ? 'fill-yellow-500 text-yellow-500' : 'text-gray-700'}"></i>
+                        </button>
+                    </div>
+                    <h3 class="font-bold text-sm truncate text-white group-hover:text-violet-300 transition-colors">${c.title}</h3>
+                    <div class="mt-4 pt-3 border-t border-gray-800/50 flex justify-between items-center">
+                        <span class="text-[9px] text-gray-600">${c.date}</span>
+                        <i data-lucide="chevron-right" class="w-3 text-gray-700"></i>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function renderTimeline(items) {
+            const grid = document.getElementById('mainGrid');
+            const groups = {};
+            items.forEach(c => {
+                const d = new Date((c.time || 0) * 1000);
+                const key = d.toLocaleString('default', { month: 'long', year: 'numeric' });
+                if (!groups[key]) groups[key] = [];
+                groups[key].push(c);
+            });
+            grid.innerHTML = Object.entries(groups).map(([month, chats]) => `
+                <div class="col-span-full mb-6">
+                    <div class="flex items-center gap-4 mb-3">
+                        <h2 class="text-[10px] font-black text-gray-500 uppercase tracking-widest">${month}</h2>
+                        <div class="h-px flex-1 bg-gray-800"></div>
+                    </div>
+                    <div class="space-y-2">
+                        ${chats.map(c => `
+                            <div onclick="openChat('${c.id}')" class="bg-gray-900/30 border ${c.starred ? 'border-yellow-500/20' : 'border-gray-800'} p-3 rounded-xl flex items-center justify-between cursor-pointer">
+                                <div class="flex items-center gap-3">
+                                    <button onclick="event.stopPropagation(); toggleStar('${c.id}')"><i data-lucide="star" class="w-3 ${c.starred ? 'fill-yellow-500 text-yellow-500' : 'text-gray-800'}"></i></button>
+                                    <h4 class="text-xs font-bold truncate max-w-[200px] text-gray-200">${c.title}</h4>
+                                </div>
+                                <span class="text-[9px] text-gray-600">${c.date}</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        async function toggleStar(id, fromModal = false) {
+            const item = indexTable.find(x => x.id === id);
+            item.starred = !item.starred;
+            const tx = db.transaction("index", "readwrite");
+            tx.objectStore("index").put(item);
+            
+            // Targeted UI update to avoid re-rendering entire grid
+            const card = document.getElementById(`card-${id}`);
+            if (card && currentView !== 'starred') {
+                if(item.starred) card.classList.add('card-starred', 'border-yellow-500/40');
+                else card.classList.remove('card-starred', 'border-yellow-500/40');
+                render(); // Refresh icons and counts
+            } else {
+                render();
+            }
+        }
+
+        async function openChat(id) {
+            showToast("Opening...");
+            const item = indexTable.find(x => x.id === id);
+            const tx = db.transaction("vault", "readonly");
+            const req = tx.objectStore("vault").get(id);
+            req.onsuccess = () => {
+                const data = req.result;
+                document.getElementById('mTitle').innerText = item.title;
+                document.getElementById('mBody').innerHTML = data.msgs.map(m => `
+                    <div class="flex flex-col ${m.role === 'user' ? 'items-end' : 'items-start'}">
+                        <div class="${m.role === 'user' ? 'chat-user' : 'chat-assistant'} max-w-[90%]">
+                            <span class="text-[9px] font-black uppercase tracking-widest opacity-40 mb-2 block">${m.role}</span>
+                            <div class="text-[14px] leading-relaxed whitespace-pre-wrap">${m.text}</div>
+                        </div>
+                    </div>`).join('');
+                const mStar = document.getElementById('mStar');
+                mStar.className = `p-2 ${item.starred ? 'text-yellow-500' : 'text-gray-500'}`;
+                mStar.innerHTML = `<i data-lucide="star" class="w-5 ${item.starred ? 'fill-yellow-500' : ''}"></i>`;
+                mStar.onclick = () => { toggleStar(id); openChat(id); };
+                document.getElementById('modal').classList.remove('hidden');
+                lucide.createIcons();
+                setTimeout(hideToast, 300);
+            };
+        }
+
+        async function exportAs(format) {
+            const targets = indexTable.filter(i => currentView !== 'starred' || i.starred);
+            if (!targets.length) return;
+            showToast(`Exporting...`);
+            const tx = db.transaction("vault", "readonly");
+            const store = tx.objectStore("vault");
+            let out = "", count = 0;
+            targets.forEach(item => {
+                const req = store.get(item.id);
+                req.onsuccess = () => {
+                    const data = req.result;
+                    out += `\n# ${item.title.toUpperCase()} (${item.date})\n\n`;
+                    data.msgs.forEach(m => out += `**${m.role.toUpperCase()}**: ${m.text}\n\n`);
+                    out += `---\n`;
+                    if (++count === targets.length) {
+                        const blob = new Blob([out], { type: "text/plain" });
+                        const a = document.createElement('a');
+                        a.href = URL.createObjectURL(blob);
+                        a.download = `ChatKeeper_Export.${format === 'md' ? 'md' : 'txt'}`;
+                        a.click();
+                        showToast("Export Ready!");
+                        toggleExportMenu();
+                    }
+                };
+            });
+        }
+
+        function toggleMenu() { document.getElementById('navDrawer').classList.toggle('open'); document.getElementById('navOverlay').classList.toggle('hidden'); }
+        function setView(v) { currentView = v; document.getElementById('viewTitle').innerText = v.toUpperCase(); toggleMenu(); render(); }
+        function closeModal() { document.getElementById('modal').classList.add('hidden'); }
+        function toggleExportMenu() { document.getElementById('exportMenu').classList.toggle('hidden'); }
+        function showToast(m) { const t = document.getElementById('toast'); document.getElementById('tMsg').innerText = m; t.style.opacity = '1'; }
+        function hideToast() { document.getElementById('toast').style.opacity = '0'; }
+        function resetApp() { if(confirm("Wipe all chats?")) { indexedDB.deleteDatabase("ChatKeeper_v4_7"); localStorage.clear(); location.reload(); } }
+        document.getElementById('search').oninput = render;
+        window.onload = () => { if (localStorage.getItem('ck_v47_auth')) unlock(); lucide.createIcons(); };
+    </script>
+</body>
+</html>
+
