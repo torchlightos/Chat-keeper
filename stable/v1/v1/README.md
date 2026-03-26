@@ -1,3 +1,0 @@
-search. feațure
-
-q
