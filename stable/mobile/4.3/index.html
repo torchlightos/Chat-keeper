@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Chat Keeper v4.0</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        :root { --accent: #8b5cf6; }
+        body { font-family: sans-serif; background: #0b0f1a; color: #e5e7eb; -webkit-tap-highlight-color: transparent; }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #374151; border-radius: 10px; }
+        .nav-drawer { transform: translateX(-100%); transition: transform 0.2s ease-out; }
+        .nav-drawer.open { transform: translateX(0); }
+        .chat-user { background: #1e293b; border-radius: 1rem 1rem 0 1rem; padding: 1rem; border: 1px solid #334155; align-self: flex-end; }
+        .chat-assistant { background: #064e3b; border-radius: 1rem 1rem 1rem 0; padding: 1rem; border: 1px solid #065f46; align-self: flex-start; }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col overflow-hidden">
+
+    <!-- SIMPLE NAV -->
+    <div id="navOverlay" onclick="toggleMenu()" class="fixed inset-0 bg-black/60 z-[100] hidden backdrop-blur-sm"></div>
+    <aside id="navDrawer" class="nav-drawer fixed top-0 left-0 h-full w-64 bg-[#0b0f1a] border-r border-gray-800 z-[101] p-6 flex flex-col gap-4">
+        <h2 class="text-xl font-bold flex items-center gap-2 mb-4"><i data-lucide="database" class="w-5 text-violet-500"></i> Archive</h2>
+        <button onclick="setView('all')" class="w-full text-left p-3 hover:bg-gray-800 rounded-xl flex items-center gap-3"><i data-lucide="layers" class="w-4"></i> All Chats</button>
+        <button onclick="setView('starred')" class="w-full text-left p-3 hover:bg-gray-800 rounded-xl flex items-center gap-3"><i data-lucide="star" class="w-4 text-yellow-500"></i> Starred</button>
+        <div class="mt-auto border-t border-gray-800 pt-4">
+            <button onclick="resetApp()" class="w-full text-left p-3 text-red-500 hover:bg-red-500/10 rounded-xl flex items-center gap-3"><i data-lucide="trash-2" class="w-4"></i> Reset All</button>
+        </div>
+    </aside>
+
+    <!-- LOCK -->
+    <div id="lockScreen" class="fixed inset-0 bg-[#0b0f1a] z-[200] flex items-center justify-center p-6 text-center">
+        <div class="max-w-xs w-full space-y-6">
+            <h1 class="text-3xl font-bold">Vault Locked</h1>
+            <input type="password" id="passInput" placeholder="Enter 222" class="w-full bg-gray-900 border border-gray-800 p-4 rounded-2xl text-center text-xl outline-none focus:border-violet-500">
+            <button onclick="unlock()" class="w-full bg-violet-600 p-4 rounded-2xl font-bold">Unlock</button>
+        </div>
+    </div>
+
+    <!-- MAIN UI -->
+    <div id="app" class="hidden flex flex-col h-screen">
+        <header class="h-16 border-b border-gray-800 flex items-center justify-between px-4 bg-[#0b0f1a]">
+            <div class="flex items-center gap-3">
+                <button onclick="toggleMenu()" class="p-2"><i data-lucide="menu"></i></button>
+                <span id="viewName" class="font-bold">Library</span>
+            </div>
+            <div class="flex items-center gap-2">
+                <input type="file" id="fileInput" class="hidden" accept=".json">
+                <button onclick="document.getElementById('fileInput').click()" class="bg-violet-600 p-2 rounded-lg"><i data-lucide="plus"></i></button>
+            </div>
+        </header>
+
+        <div class="p-4 border-b border-gray-800">
+            <input type="text" id="search" placeholder="Filter titles..." class="w-full bg-gray-900 border border-gray-800 p-3 rounded-xl outline-none focus:border-violet-500">
+        </div>
+
+        <div id="list" class="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
+            <!-- Items appear here -->
+        </div>
+    </div>
+
+    <!-- DETAIL MODAL -->
+    <div id="modal" class="fixed inset-0 bg-black/90 z-[300] hidden flex flex-col">
+        <header class="h-16 border-b border-gray-800 flex items-center justify-between px-4">
+            <h2 id="mTitle" class="truncate font-bold pr-4">Title</h2>
+            <div class="flex items-center gap-3">
+                <button id="mStar" class="p-2"><i data-lucide="star"></i></button>
+                <button onclick="closeModal()" class="p-2"><i data-lucide="x"></i></button>
+            </div>
+        </header>
+        <div id="mBody" class="flex-1 overflow-y-auto p-4 space-y-6 flex flex-col custom-scrollbar"></div>
+    </div>
+
+    <!-- STATUS TOAST -->
+    <div id="toast" class="fixed bottom-6 left-1/2 -translate-x-1/2 bg-violet-600 px-6 py-3 rounded-full shadow-xl opacity-0 transition-opacity pointer-events-none z-[400]">
+        <span id="tMsg">Ready</span>
+    </div>
+
+    <script>
+        let db;
+        let indexTable = []; // Small metadata list in RAM
+        let currentView = 'all';
+
+        // 1. DATABASE SETUP
+        const initDB = () => new Promise(r => {
+            const req = indexedDB.open("ChatKeeperV4", 1);
+            req.onupgradeneeded = e => {
+                const d = e.target.result;
+                d.createObjectStore("index", { keyPath: "id" }); // Small metadata
+                d.createObjectStore("vault", { keyPath: "id" }); // Heavy data
+            };
+            req.onsuccess = e => { db = e.target.result; r(); };
+        });
+
+        // 2. UNLOCK
+        function unlock() {
+            if (document.getElementById('passInput').value === '222') {
+                document.getElementById('lockScreen').style.display = 'none';
+                document.getElementById('app').style.display = 'flex';
+                initDB().then(loadIndex);
+            }
+        }
+
+        // 3. LOAD INDEX (The "Table of Titles")
+        async function loadIndex() {
+            const tx = db.transaction("index", "readonly");
+            const req = tx.objectStore("index").getAll();
+            req.onsuccess = () => {
+                indexTable = req.result.sort((a,b) => b.time - a.time);
+                render();
+            };
+        }
+
+        // 4. CHUNKED IMPORT (The "No-Freeze" Engine)
+        document.getElementById('fileInput').onchange = e => {
+            const file = e.target.files[0];
+            if (!file) return;
+            showToast("Reading file...");
+            const reader = new FileReader();
+            reader.onload = async event => {
+                const raw = JSON.parse(event.target.result);
+                let i = 0;
+                showToast(`Indexing ${raw.length} chats...`);
+
+                const processChunk = () => {
+                    const limit = Math.min(i + 50, raw.length);
+                    const txIndex = db.transaction("index", "readwrite");
+                    const txVault = db.transaction("vault", "readwrite");
+                    
+                    for (; i < limit; i++) {
+                        const c = raw[i];
+                        const msgs = Object.values(c.mapping || {}).filter(m => m.message?.content?.parts).map(m => ({
+                            role: m.message.author.role,
+                            text: m.message.content.parts.join('\n')
+                        }));
+                        if (msgs.length === 0) continue;
+
+                        const entry = {
+                            id: c.id,
+                            title: c.title || "Untitled",
+                            date: new Date(c.create_time * 1000).toLocaleDateString(),
+                            time: c.create_time,
+                            starred: false
+                        };
+                        txIndex.objectStore("index").put(entry);
+                        txVault.objectStore("vault").put({ id: c.id, msgs });
+                    }
+
+                    if (i < raw.length) {
+                        showToast(`Indexed ${i} / ${raw.length}...`);
+                        setTimeout(processChunk, 1); // Let browser breathe
+                    } else {
+                        showToast("Import complete!");
+                        loadIndex();
+                    }
+                };
+                processChunk();
+            };
+            reader.readAsText(file);
+        };
+
+        // 5. RENDER LIST
+        function render() {
+            const query = document.getElementById('search').value.toLowerCase();
+            const filtered = indexTable.filter(item => {
+                const matchSearch = item.title.toLowerCase().includes(query);
+                const matchView = currentView === 'all' || item.starred;
+                return matchSearch && matchView;
+            });
+
+            document.getElementById('list').innerHTML = filtered.map(item => `
+                <div onclick="openChat('${item.id}')" class="bg-gray-900/50 border ${item.starred ? 'border-yellow-500/40' : 'border-gray-800'} p-4 rounded-2xl flex justify-between items-center active:scale-95 transition">
+                    <div class="min-w-0 pr-4">
+                        <h3 class="font-bold truncate">${item.title}</h3>
+                        <p class="text-xs text-gray-500">${item.date}</p>
+                    </div>
+                    <i data-lucide="chevron-right" class="w-4 text-gray-700"></i>
+                </div>
+            `).join('');
+            lucide.createIcons();
+        }
+
+        // 6. OPEN CHAT (The "Btrieve Retrieval")
+        async function openChat(id) {
+            showToast("Retrieving...");
+            const item = indexTable.find(x => x.id === id);
+            const tx = db.transaction("vault", "readonly");
+            const req = tx.objectStore("vault").get(id);
+            req.onsuccess = () => {
+                const data = req.result;
+                document.getElementById('mTitle').innerText = item.title;
+                document.getElementById('mBody').innerHTML = data.msgs.map(m => `
+                    <div class="${m.role === 'user' ? 'chat-user' : 'chat-assistant'} max-w-[90%]">
+                        <span class="text-[9px] font-bold uppercase opacity-30">${m.role}</span>
+                        <div class="text-sm whitespace-pre-wrap mt-1">${m.text}</div>
+                    </div>
+                `).join('');
+                
+                const starBtn = document.getElementById('mStar');
+                starBtn.innerHTML = `<i data-lucide="star" class="w-5 ${item.starred ? 'fill-yellow-500 text-yellow-500' : 'text-gray-500'}"></i>`;
+                starBtn.onclick = () => toggleStar(id);
+
+                document.getElementById('modal').style.display = 'flex';
+                lucide.createIcons();
+                hideToast();
+            };
+        }
+
+        async function toggleStar(id) {
+            const item = indexTable.find(x => x.id === id);
+            item.starred = !item.starred;
+            const tx = db.transaction("index", "readwrite");
+            tx.objectStore("index").put(item);
+            
+            // Update modal star UI
+            const starBtn = document.getElementById('mStar');
+            starBtn.innerHTML = `<i data-lucide="star" class="w-5 ${item.starred ? 'fill-yellow-500 text-yellow-500' : 'text-gray-500'}"></i>`;
+            lucide.createIcons();
+            render();
+        }
+
+        // 7. UTILS
+        function toggleMenu() {
+            const d = document.getElementById('navDrawer');
+            const o = document.getElementById('navOverlay');
+            d.classList.toggle('open');
+            o.classList.toggle('hidden');
+        }
+        function setView(v) {
+            currentView = v;
+            document.getElementById('viewName').innerText = v === 'all' ? 'Library' : 'Starred';
+            toggleMenu();
+            render();
+        }
+        function closeModal() { document.getElementById('modal').style.display = 'none'; }
+        function showToast(m) { const t = document.getElementById('toast'); document.getElementById('tMsg').innerText = m; t.style.opacity = '1'; }
+        function hideToast() { document.getElementById('toast').style.opacity = '0'; }
+        function resetApp() { if(confirm("Clear all data?")) { indexedDB.deleteDatabase("ChatKeeperV4"); location.reload(); } }
+
+        document.getElementById('search').oninput = render;
+        lucide.createIcons();
+    </script>
+</body>
+</html>
+
