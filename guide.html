@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Export Guide | Chat Keeper</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            background-color: #020617;
+            color: #f8fafc;
+            font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        }
+        .card-bg {
+            background: linear-gradient(145deg, #1e293b 0%, #0f172a 100%);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        .step-number {
+            background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+        }
+    </style>
+</head>
+<body class="min-h-screen py-10 px-4">
+
+    <div class="max-w-xl mx-auto space-y-6">
+        <!-- Header -->
+        <div class="flex items-center justify-between mb-8">
+            <a href="index.html" class="flex items-center gap-2 text-slate-400 hover:text-white transition-colors group">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+                <span class="text-sm font-medium">Back to Launch Pad</span>
+            </a>
+            <div class="px-3 py-1 bg-blue-500/10 text-blue-400 text-[10px] font-bold uppercase tracking-widest border border-blue-500/20 rounded-full">Official Guide</div>
+        </div>
+
+        <div class="card-bg rounded-3xl p-8 shadow-2xl">
+            <h1 class="text-3xl font-extrabold text-white mb-2">The Gold File</h1>
+            <p class="text-slate-400 text-sm mb-8 leading-relaxed">Follow these steps to get your <code class="text-blue-400 bg-blue-400/10 px-1 rounded">conversations.json</code> file from ChatGPT.</p>
+
+            <div class="space-y-10">
+                <!-- Step 1 -->
+                <div class="relative pl-12">
+                    <div class="absolute left-0 top-0 w-8 h-8 step-number rounded-lg flex items-center justify-center font-bold text-white shadow-lg shadow-blue-500/20">1</div>
+                    <h3 class="font-bold text-white mb-2 uppercase text-xs tracking-widest text-blue-400">Request Export</h3>
+                    <p class="text-slate-300 text-sm">Log in to ChatGPT. Go to <strong>Settings</strong> > <strong>Data Controls</strong> and click the <strong>Export</strong> button.</p>
+                </div>
+
+                <!-- Step 2 -->
+                <div class="relative pl-12 border-t border-slate-800/50 pt-8">
+                    <div class="absolute left-0 top-8 w-8 h-8 step-number rounded-lg flex items-center justify-center font-bold text-white shadow-lg shadow-blue-500/20">2</div>
+                    <h3 class="font-bold text-white mb-2 uppercase text-xs tracking-widest text-blue-400">Check Email</h3>
+                    <p class="text-slate-300 text-sm">Open the email from OpenAI. Click <strong>Download data export</strong>. You will get a <code class="text-slate-400">.zip</code> file.</p>
+                </div>
+
+                <!-- Step 3 (The Unzip Section) -->
+                <div class="relative pl-12 border-t border-slate-800/50 pt-8">
+                    <div class="absolute left-0 top-8 w-8 h-8 step-number rounded-lg flex items-center justify-center font-bold text-white shadow-lg shadow-blue-500/20">3</div>
+                    <h3 class="font-bold text-white mb-4 uppercase text-xs tracking-widest text-blue-400">Unzip Your File</h3>
+                    
+                    <div class="grid grid-cols-1 gap-4">
+                        <!-- Desktop -->
+                        <div class="p-4 bg-slate-900/40 rounded-2xl border border-slate-700/50">
+                            <div class="flex items-center gap-2 mb-2">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-slate-400"><rect width="20" height="14" x="2" y="3" rx="2"/><line x1="2" x2="22" y1="20" y2="20"/><line x1="12" x2="12" y1="17" y2="17"/></svg>
+                                <span class="text-xs font-bold text-slate-100 uppercase">PC / Mac</span>
+                            </div>
+                            <p class="text-xs text-slate-400 leading-normal">Right-click the zip file and choose <strong>Extract All</strong> (Windows) or double-click (Mac) to see the folder inside.</p>
+                        </div>
+
+                        <!-- iPhone -->
+                        <div class="p-4 bg-slate-900/40 rounded-2xl border border-slate-700/50">
+                            <div class="flex items-center gap-2 mb-2">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-slate-400"><rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><path d="M12 18h.01"/></svg>
+                                <span class="text-xs font-bold text-slate-100 uppercase">iPhone (iOS)</span>
+                            </div>
+                            <p class="text-xs text-slate-400 leading-normal">Open the <strong>Files</strong> app. Tap the <code class="text-slate-500">.zip</code> file once. A folder will instantly appear next to it.</p>
+                        </div>
+
+                        <!-- Android -->
+                        <div class="p-4 bg-slate-900/40 rounded-2xl border border-slate-700/50">
+                            <div class="flex items-center gap-2 mb-2">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-slate-400"><path d="M2 17h20"/><path d="M22 17v-5a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v5"/><path d="m12 6-4 4h8l-4-4Z"/></svg>
+                                <span class="text-xs font-bold text-slate-100 uppercase">Android</span>
+                            </div>
+                            <p class="text-xs text-slate-400 leading-normal">Open <strong>Files by Google</strong>. Tap the zip file in Downloads, then tap <strong>Extract</strong>.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 4 -->
+                <div class="relative pl-12 border-t border-slate-800/50 pt-8 pb-4">
+                    <div class="absolute left-0 top-8 w-8 h-8 step-number rounded-lg flex items-center justify-center font-bold text-white shadow-lg shadow-blue-500/20">4</div>
+                    <h3 class="font-bold text-white mb-2 uppercase text-xs tracking-widest text-blue-400">Upload to Keeper</h3>
+                    <p class="text-slate-300 text-sm">Inside the folder, find <strong>conversations.json</strong>. This is the only file you need to upload to Chat Keeper.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex items-center justify-center gap-2 text-slate-600 text-[10px] font-bold uppercase tracking-widest">
+            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/></svg>
+            No data ever leaves your device
+        </div>
+    </div>
+
+</body>
+</html>
+
