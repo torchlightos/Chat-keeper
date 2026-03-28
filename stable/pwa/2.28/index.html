@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#0f172a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>ChatKeeper PWA v2.28</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'], mono: ['JetBrains Mono', 'monospace'] }
+                }
+            }
+        }
+    </script>
+    <style>
+        @layer base { body { @apply bg-slate-900 text-slate-900 antialiased overflow-hidden; } }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { @apply bg-slate-300 rounded-full; }
+        .animate-fade-in { animation: fadeIn 0.2s ease-out forwards; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="module">
+        import React, { useState, useEffect, useMemo } from 'https://esm.sh/react@18.2.0';
+        import ReactDOM from 'https://esm.sh/react-dom@18.2.0/client';
+        import * as Lucide from 'https://esm.sh/lucide-react@0.400.0?deps=react@18.2.0';
+        import JSZip from 'https://esm.sh/jszip@3.10.1';
+        import { clsx } from 'https://esm.sh/clsx@2.1.1';
+        import { twMerge } from 'https://esm.sh/tailwind-merge@2.3.0';
+
+        const e = React.createElement;
+        function cn(...inputs) { return twMerge(clsx(inputs)); }
+
+        // --- DATABASE ---
+        const dbName = "ChatKeeperDB_v2_28";
+        const storeName = "conversations";
+        const initDB = () => new Promise((res) => {
+            const req = indexedDB.open(dbName, 1);
+            req.onupgradeneeded = (ev) => { if (!ev.target.result.objectStoreNames.contains(storeName)) ev.target.result.createObjectStore(storeName, { keyPath: "id" }); };
+            req.onsuccess = (ev) => res(ev.target.result);
+        });
+        const saveConvs = async (convs) => {
+            const db = await initDB();
+            const tx = db.transaction(storeName, "readwrite");
+            convs.forEach(c => tx.objectStore(storeName).put(c));
+            return new Promise(r => tx.oncomplete = r);
+        };
+        const loadAll = async () => {
+            const db = await initDB();
+            return new Promise(res => {
+                const req = db.transaction(storeName, "readonly").objectStore(storeName).getAll();
+                req.onsuccess = () => res(req.result);
+            });
+        };
+
+        // --- QUANTUM SEARCH ENGINE ---
+        const parseQuantumQuery = (query) => {
+            const filters = { text: [], mustNot: [], exact: [], topic: null, model: null, isStarred: null, minLen: 0 };
+            const parts = query.match(/[^\s"']+|"([^"]*)"|'([^']*)'/g) || [];
+            
+            parts.forEach(part => {
+                if (part.startsWith('topic:')) filters.topic = part.split(':')[1].toLowerCase();
+                else if (part.startsWith('model:')) filters.model = part.split(':')[1].toLowerCase();
+                else if (part.startsWith('is:starred')) filters.isStarred = true;
+                else if (part.startsWith('is:unstarred')) filters.isStarred = false;
+                else if (part.startsWith('len:>')) filters.minLen = parseInt(part.split('>')[1]);
+                else if (part.startsWith('-')) filters.mustNot.push(part.substring(1).toLowerCase());
+                else if (part.startsWith('"') && part.endsWith('"')) filters.exact.push(part.replace(/"/g, '').toLowerCase());
+                else filters.text.push(part.toLowerCase());
+            });
+            return filters;
+        };
+
+        const filterConvs = (convs, queryStr) => {
+            if (!queryStr) return convs;
+            const q = parseQuantumQuery(queryStr);
+            return convs.filter(c => {
+                const content = (c.title + ' ' + c.messages.map(m => m.content).join(' ')).toLowerCase();
+                if (q.isStarred !== null && c.isStarred !== q.isStarred) return false;
+                if (q.topic && c.analysis.topic.toLowerCase() !== q.topic) return false;
+                if (q.minLen && c.analysis.wordCount < q.minLen) return false;
+                if (q.model && !c.analysis.models.some(m => m.toLowerCase().includes(q.model))) return false;
+                if (q.mustNot.some(word => content.includes(word))) return false;
+                if (q.exact.some(phrase => !content.includes(phrase))) return false;
+                if (q.text.some(word => !content.includes(word))) return false;
+                return true;
+            });
+        };
+
+        // --- PARSER ---
+        const parseConv = (raw) => {
+            const messages = [];
+            const mapping = raw.mapping || {};
+            let node = raw.current_node;
+            const path = [];
+            while (node && mapping[node]) {
+                if (mapping[node].message) path.unshift(mapping[node]);
+                node = mapping[node].parent;
+            }
+            path.forEach(n => {
+                const m = n.message;
+                if (!m?.content?.parts) return;
+                messages.push({
+                    id: m.id, role: m.author.role === 'assistant' ? 'assistant' : 'user',
+                    content: m.content.parts.join('\n'),
+                    model: m.metadata?.model_slug || 'unknown',
+                    timestamp: m.create_time
+                });
+            });
+            const text = messages.map(m => m.content).join(' ').toLowerCase();
+            const topics = { Coding: ['code', 'api', 'react', 'js', 'css', 'python'], Business: ['market', 'roi', 'product', 'revenue'], Learning: ['explain', 'teach', 'concept'] };
+            let topic = 'General';
+            Object.entries(topics).forEach(([k, kw]) => { if (kw.some(w => text.includes(w))) topic = k; });
+            return {
+                id: raw.id || Math.random().toString(36).substr(2, 9),
+                title: raw.title || 'Untitled Chat',
+                createdAt: (raw.create_time || Date.now() / 1000) * 1000,
+                messages, isStarred: false,
+                analysis: { topic, wordCount: text.split(/\s+/).length, models: [...new Set(messages.map(m => m.model))] }
+            };
+        };
+
+        // --- VIEWS ---
+        const TimelineView = ({ convs, onSelect }) => {
+            const grouped = useMemo(() => {
+                const tree = {};
+                convs.forEach(c => {
+                    const d = new Date(c.createdAt);
+                    const y = d.getFullYear();
+                    const m = d.toLocaleString('default', { month: 'long' });
+                    if (!tree[y]) tree[y] = {};
+                    if (!tree[y][m]) tree[y][m] = [];
+                    tree[y][m].push(c);
+                });
+                return tree;
+            }, [convs]);
+
+            return e('div', { className: 'p-8 space-y-12' },
+                Object.entries(grouped).sort((a,b) => b[0]-a[0]).map(([year, months]) => e('div', { key: year },
+                    e('h2', { className: 'text-4xl font-black text-slate-800 mb-8 flex items-center gap-4' }, 
+                        year, e('span', { className: 'h-1 flex-1 bg-slate-100 rounded-full' })),
+                    Object.entries(months).map(([month, chats]) => e('div', { key: month, className: 'mb-8 ml-4' },
+                        e('h3', { className: 'text-xl font-bold text-indigo-600 mb-4' }, month),
+                        e('div', { className: 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4' },
+                            chats.map(c => e('div', { 
+                                key: c.id, onClick: () => onSelect(c.id),
+                                className: 'bg-white border p-4 rounded-2xl hover:shadow-lg transition-all cursor-pointer'
+                            }, e('div', { className: 'font-bold text-sm mb-1 truncate' }, c.title), e('div', { className: 'text-[10px] text-slate-400 uppercase font-black' }, c.analysis.topic)))
+                        )
+                    ))
+                ))
+            );
+        };
+
+        const App = () => {
+            const [active, setActive] = useState(false);
+            const [view, setView] = useState('library');
+            const [convs, setConvs] = useState([]);
+            const [search, setSearch] = useState('');
+            const [loading, setLoading] = useState(false);
+            const [selectedId, setSelectedId] = useState(null);
+            const [showHub, setShowHub] = useState(false);
+
+            useEffect(() => {
+                if (localStorage.getItem('ck_auth') === '222') setActive(true);
+                loadAll().then(setConvs);
+            }, []);
+
+            const handleImport = async (ev) => {
+                const file = ev.target.files[0];
+                if (!file) return;
+                setLoading(true);
+                const reader = new FileReader();
+                reader.onload = async (e) => {
+                    const raw = JSON.parse(e.target.result);
+                    const parsed = raw.map(parseConv);
+                    await saveConvs(parsed);
+                    setConvs(await loadAll());
+                    setLoading(false);
+                };
+                reader.readAsText(file);
+            };
+
+            const toggleStar = async (id) => {
+                const c = convs.find(x => x.id === id);
+                c.isStarred = !c.isStarred;
+                setConvs([...convs]);
+                await saveConvs([c]);
+            };
+
+            if (!active) {
+                return e('div', { className: 'min-h-screen bg-slate-900 flex items-center justify-center p-6' },
+                    e('div', { className: 'bg-white p-12 rounded-[3.5rem] shadow-2xl max-w-sm w-full text-center border border-slate-700' },
+                        e('div', { className: 'w-24 h-24 bg-indigo-600 text-white rounded-[2rem] flex items-center justify-center mx-auto mb-8 shadow-xl shadow-indigo-500/30' }, e(Lucide.Activity, { size: 48 })),
+                        e('h1', { className: 'text-4xl font-black text-slate-800 mb-2 tracking-tighter' }, 'ChatKeeper'),
+                        e('p', { className: 'text-slate-400 mb-10 text-sm font-medium' }, 'The high-performance local AI brain.'),
+                        e('input', { 
+                            id: 'pw', className: 'w-full p-6 bg-slate-50 border-2 border-slate-100 rounded-[2rem] mb-4 font-mono text-center text-3xl focus:border-indigo-600 outline-none transition-all', 
+                            placeholder: '222', onKeyDown: (ev) => ev.key === 'Enter' && ev.target.value === '222' && (localStorage.setItem('ck_auth', '222'), setActive(true))
+                        }),
+                        e('button', {
+                            onClick: () => { if (document.getElementById('pw').value === '222') { localStorage.setItem('ck_auth', '222'); setActive(true); } },
+                            className: 'w-full py-5 bg-indigo-600 text-white rounded-[2rem] font-black text-xl hover:bg-indigo-700 shadow-xl shadow-indigo-200 transition-all active:scale-95'
+                        }, 'Unlock Library')
+                    )
+                );
+            }
+
+            const filtered = filterConvs(convs, search);
+
+            return e('div', { className: 'flex h-screen bg-white overflow-hidden font-sans' },
+                // Sidebar
+                e('div', { className: 'w-20 md:w-64 bg-slate-950 flex flex-col shrink-0 border-r border-slate-800' },
+                    e('div', { className: 'p-6 mb-8 flex items-center gap-3' },
+                        e('div', { className: 'w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white' }, e(Lucide.Cpu)),
+                        e('span', { className: 'hidden md:block font-black text-xl text-white' }, 'ChatKeeper')
+                    ),
+                    e('nav', { className: 'flex-1 px-4 space-y-3' },
+                        [
+                            { id: 'library', icon: Lucide.Database, label: 'OmniSearch' },
+                            { id: 'timeline', icon: Lucide.CalendarRange, label: 'Timeline' },
+                            { id: 'insights', icon: Lucide.BarChart4, label: 'Insights' },
+                            { id: 'prompts', icon: Lucide.Terminal, label: 'Prompts' }
+                        ].map(i => e('button', {
+                            key: i.id, onClick: () => setView(i.id),
+                            className: cn("w-full flex items-center gap-4 p-4 rounded-2xl transition-all", view === i.id ? "bg-indigo-600 text-white shadow-xl shadow-indigo-500/20" : "text-slate-500 hover:text-white")
+                        }, e(i.icon, { size: 20 }), e('span', { className: 'hidden md:block font-bold text-sm' }, i.label)))
+                    ),
+                    e('div', { className: 'p-4 border-t border-slate-900' },
+                        e('label', { className: 'flex items-center gap-4 p-4 rounded-2xl cursor-pointer text-slate-500 hover:text-white transition-all' },
+                            e(Lucide.UploadCloud), e('span', { className: 'hidden md:block text-xs font-black uppercase' }, 'Feed Data'),
+                            e('input', { type: 'file', className: 'hidden', accept: '.json', onChange: handleImport })
+                        )
+                    )
+                ),
+
+                // Content
+                e('div', { className: 'flex-1 flex flex-col min-w-0 bg-slate-50' },
+                    e('header', { className: 'bg-white border-b p-5 flex items-center justify-center gap-4 sticky top-0 z-20' },
+                        e('button', { onClick: () => setShowHub(true), className: 'p-3 bg-slate-900 text-white rounded-2xl hover:bg-slate-800' }, e(Lucide.Grid, { size: 20 })),
+                        e('div', { className: 'max-w-4xl w-full relative' },
+                            e(Lucide.Zap, { className: 'absolute left-4 top-1/2 -translate-y-1/2 text-indigo-500', size: 18 }),
+                            e('input', { 
+                                className: 'w-full pl-12 pr-4 py-4 bg-slate-100 border-none rounded-3xl focus:ring-4 focus:ring-indigo-500/10 font-medium text-lg placeholder:text-slate-400', 
+                                placeholder: 'Search logic: topic:Coding "python" -error len:>100 is:starred', value: search, onChange: (ev) => setSearch(ev.target.value)
+                            })
+                        )
+                    ),
+
+                    e('main', { className: 'flex-1 overflow-y-auto custom-scrollbar' },
+                        view === 'timeline' ? e(TimelineView, { convs, onSelect: setSelectedId }) :
+                        view === 'library' ? e('div', { className: 'p-8 animate-fade-in' },
+                            e('div', { className: 'flex justify-between items-center mb-8' },
+                                e('h2', { className: 'text-3xl font-black' }, 'Quantum Archive'),
+                                e('span', { className: 'bg-indigo-100 text-indigo-600 px-3 py-1 rounded-full text-xs font-black' }, `${filtered.length} Results`)
+                            ),
+                            e('div', { className: 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6' },
+                                filtered.map(c => e('div', { 
+                                    key: c.id, onClick: () => setSelectedId(c.id),
+                                    className: 'bg-white border-2 border-transparent rounded-[2.5rem] p-8 hover:border-indigo-600 hover:shadow-2xl transition-all cursor-pointer relative group'
+                                },
+                                    e('div', { className: 'flex justify-between items-start mb-4' },
+                                        e('span', { className: 'text-[10px] font-black uppercase tracking-widest text-indigo-500' }, c.analysis.topic),
+                                        e('button', { onClick: (ev) => { ev.stopPropagation(); toggleStar(c.id); } }, e(Lucide.Star, { size: 22, className: cn(c.isStarred ? 'fill-amber-400 text-amber-400' : 'text-slate-100 group-hover:text-slate-200') }))
+                                    ),
+                                    e('h3', { className: 'font-bold text-slate-800 line-clamp-2 h-12 mb-8 leading-snug text-lg' }, c.title),
+                                    e('div', { className: 'flex items-center justify-between pt-6 border-t border-slate-50 text-[10px] font-black text-slate-400 uppercase tracking-widest' },
+                                        e('span', null, new Date(c.createdAt).toLocaleDateString()),
+                                        e('span', { className: 'bg-slate-100 px-2 py-1 rounded-lg' }, c.analysis.models[0]?.slice(0,10))
+                                    )
+                                ))
+                            )
+                        ) : 
+                        view === 'insights' ? e('div', { className: 'p-12 animate-fade-in' },
+                            e('h2', { className: 'text-4xl font-black mb-12' }, 'Brain Profile'),
+                            e('div', { className: 'grid grid-cols-1 md:grid-cols-2 gap-8' },
+                                e('div', { className: 'bg-slate-900 text-white p-10 rounded-[3rem] shadow-2xl' },
+                                    e('h3', { className: 'text-indigo-400 uppercase font-black tracking-widest text-xs mb-8' }, 'Model Capacity Usage'),
+                                    e('div', { className: 'space-y-6' },
+                                        Object.entries(convs.reduce((a,c)=>{c.analysis.models.forEach(m=>a[m]=(a[m]||0)+1);return a;}, {})).map(([n,c]) => e('div', { key: n },
+                                            e('div', { className: 'flex justify-between mb-2 font-bold' }, e('span', null, n), e('span', null, c)),
+                                            e('div', { className: 'h-2 bg-slate-800 rounded-full overflow-hidden' }, e('div', { className: 'h-full bg-indigo-500', style:{width:`${(c/convs.length)*100}%`} }))
+                                        ))
+                                    )
+                                )
+                            )
+                        ) :
+                        view === 'prompts' ? e('div', { className: 'p-8 grid grid-cols-1 md:grid-cols-2 gap-6' },
+                            convs.map(c => {
+                                const m = c.messages.find(x => x.role === 'user');
+                                return m ? e('div', { key: c.id, className: 'bg-white p-8 rounded-[3rem] border-2 border-slate-50' },
+                                    e('h4', { className: 'font-black text-slate-800 mb-4' }, c.title),
+                                    e('div', { className: 'bg-slate-900 text-indigo-300 p-6 rounded-3xl text-xs font-mono mb-6 line-clamp-6' }, m.content),
+                                    e('button', { onClick: () => navigator.clipboard.writeText(m.content), className: 'font-black text-xs uppercase text-indigo-600' }, 'Copy Seed Prompt')
+                                ) : null;
+                            })
+                        ) : null
+                    )
+                ),
+
+                // Global Jump Hub
+                showHub && e('div', { className: 'fixed inset-0 z-[100] flex items-center justify-center p-6' },
+                    e('div', { className: 'absolute inset-0 bg-slate-950/80 backdrop-blur-xl', onClick: () => setShowHub(false) }),
+                    e('div', { className: 'bg-white w-full max-w-4xl rounded-[4rem] overflow-hidden relative shadow-2xl animate-fade-in' },
+                        e('div', { className: 'p-12 border-b bg-slate-50 flex justify-between' }, e('h2', { className: 'text-4xl font-black' }, 'Mission Control'), e('button', { onClick: () => setShowHub(false) }, e(Lucide.X, { size: 32 }))),
+                        e('div', { className: 'p-8 grid grid-cols-2 gap-4' },
+                            [{id:'library', n:'OmniSearch', d:'Quantum query language across all metadata.', i:Lucide.Search}, 
+                             {id:'timeline', n:'Chronos', d:'Temporal drill-down by Year and Month.', i:Lucide.History}, 
+                             {id:'insights', n:'Synapse', d:'Neural model usage & brain distribution.', i:Lucide.Brain},
+                             {id:'prompts', n:'Seed Harvest', d:'Extract primary intent prompts.', i:Lucide.Zap}].map(i => e('div', {
+                                key: i.id, onClick: () => { setView(i.id); setShowHub(false); },
+                                className: 'p-8 rounded-[2.5rem] bg-slate-50 border-2 border-transparent hover:border-indigo-600 hover:bg-white cursor-pointer transition-all'
+                            }, e(i.i, { className: 'text-indigo-600 mb-4', size: 32 }), e('div', { className: 'font-black text-xl' }, i.n), e('div', { className: 'text-sm text-slate-500' }, i.d)))
+                        )
+                    )
+                ),
+
+                selectedId && e('div', { className: 'fixed inset-0 z-[110] bg-white flex flex-col animate-fade-in' },
+                    e('div', { className: 'p-6 border-b flex justify-between items-center bg-white' },
+                        e('button', { onClick: () => setSelectedId(null), className: 'p-3 bg-slate-100 rounded-2xl' }, e(Lucide.ChevronLeft)),
+                        e('h2', { className: 'font-black truncate max-w-lg text-xl' }, convs.find(c => c.id === selectedId).title),
+                        e('button', { onClick: () => setSelectedId(null), className: 'p-3 bg-slate-100 rounded-2xl' }, e(Lucide.X))
+                    ),
+                    e('div', { className: 'flex-1 overflow-y-auto p-4 md:p-12 space-y-12 bg-slate-50 custom-scrollbar' },
+                        convs.find(c => c.id === selectedId).messages.map(m => e('div', { key: m.id, className: cn("max-w-4xl mx-auto flex flex-col", m.role === 'user' ? "items-end" : "items-start") },
+                            e('span', { className: 'text-[10px] font-black uppercase text-slate-400 mb-2 tracking-widest' }, m.role),
+                            e('div', { className: cn("p-8 rounded-[3rem] shadow-sm text-lg leading-relaxed group relative whitespace-pre-wrap", m.role === 'user' ? "bg-slate-900 text-white rounded-tr-none" : "bg-white border-2 border-slate-100 rounded-tl-none") },
+                                m.content,
+                                e('button', { onClick: () => navigator.clipboard.writeText(m.content), className: 'absolute top-4 right-4 opacity-0 group-hover:opacity-100 bg-indigo-600 text-white p-3 rounded-2xl shadow-xl' }, e(Lucide.Copy, { size: 18 }))
+                            )
+                        ))
+                    )
+                ),
+
+                loading && e('div', { className: 'fixed inset-0 z-[200] bg-slate-950/90 backdrop-blur-2xl flex items-center justify-center' },
+                    e('div', { className: 'text-center' },
+                        e(Lucide.Loader2, { className: 'w-24 h-24 text-indigo-600 animate-spin mx-auto mb-8' }),
+                        e('h3', { className: 'text-white text-3xl font-black italic' }, 'Analyzing Synapses...'),
+                        e('p', { className: 'text-slate-500 mt-4 font-bold' }, 'Decrypting and indexing local archive...')
+                    )
+                )
+            );
+        };
+
+        ReactDOM.createRoot(document.getElementById('root')).render(e(App));
+    </script>
+</body>
+</html>
+
