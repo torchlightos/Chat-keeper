@@ -1,0 +1,1514 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#0f172a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="ChatKeeper PWA">
+    
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="data:application/manifest+json;base64,ewogICJuYW1lIjogIkNoYXRLZWVwZXIgUFdBIDIsMjIiLAogICJzaG9ydF9uYW1lIjogIkNoYXRLZWVwZXIiLAogICJkZXNjcmlwdGlvbiI6ICJPZmZsaW5lLWZpcnN0IENoYXRfR1BUIENvbnZlcnNhdGlvbiBNYW5hZ2VyIiwKICAic3RhcnRfdXJsIjogIi4iLAogICJkaXNwbGF5IjogInN0YW5kYWxvbmUiLAogICJiYWNrZ3JvdW5kX2NvbG9yIjogIiMwZjE3MmEiLAogICJ0aGVtZV9jb2xvciI6ICIjMGYxNzJhIiwKICAiaWNvbnMiOiBbCiAgICB7CiAgICAgICJzcmMiOiAiaHR0cHM6Ly9jZG4taWNvbnMtcG5nLmZyZWVwaWsuY29tLzI1Ni8xMjQ3OS8xMjQ3OTI2NS5wbmc/c2VtdD1haXNfaHlicmlkIiwKICAgICAgInNpemVzIjogIjI1NngyNTYiLAogICAgICAidHlwZSI6ICJpbWFnZS9wbmciCiAgICB9CiAgXQp9">
+    
+    <title>ChatKeeper PWA v2.22</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    animation: {
+                        'fade-in': 'fadeIn 0.2s ease-out',
+                        'slide-in-right': 'slideInRight 0.2s ease-out',
+                        'slide-in-bottom': 'slideInBottom 0.2s ease-out',
+                    },
+                    keyframes: {
+                        fadeIn: {
+                            '0%': { opacity: '0' },
+                            '100%': { opacity: '1' },
+                        },
+                        slideInRight: {
+                            '0%': { transform: 'translateX(1rem)', opacity: '0' },
+                            '100%': { transform: 'translateX(0)', opacity: '1' },
+                        },
+                        slideInBottom: {
+                            '0%': { transform: 'translateY(1rem)', opacity: '0' },
+                            '100%': { transform: 'translateY(0)', opacity: '1' },
+                        },
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @layer base {
+            body { @apply bg-slate-900 text-slate-900 antialiased; }
+        }
+        @layer components {
+            .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+            .custom-scrollbar::-webkit-scrollbar-track { @apply bg-transparent; }
+            .custom-scrollbar::-webkit-scrollbar-thumb { @apply bg-slate-200 rounded-full hover:bg-slate-300 transition-colors; }
+            
+            .markdown-body h1 { @apply text-2xl font-bold mb-4 mt-6; }
+            .markdown-body h2 { @apply text-xl font-bold mb-3 mt-5; }
+            .markdown-body h3 { @apply text-lg font-bold mb-2 mt-4; }
+            .markdown-body p { @apply mb-4 leading-relaxed; }
+            .markdown-body ul { @apply list-disc pl-6 mb-4; }
+            .markdown-body ol { @apply list-decimal pl-6 mb-4; }
+            .markdown-body li { @apply mb-1; }
+            .markdown-body code { @apply bg-slate-100 px-1 rounded font-mono text-sm; }
+            .markdown-body pre { @apply bg-slate-900 text-slate-100 p-4 rounded-lg mb-4 overflow-x-auto font-mono text-sm; }
+            .markdown-body blockquote { @apply border-l-4 border-slate-200 pl-4 italic mb-4; }
+            .markdown-body table { @apply w-full border-collapse mb-4; }
+            .markdown-body th, .markdown-body td { @apply border border-slate-200 p-2 text-left; }
+            .markdown-body th { @apply bg-slate-50 font-bold; }
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="module">
+        import React, { useState, useEffect, useMemo, useRef, useCallback } from 'https://esm.sh/react@18.2.0';
+        import ReactDOM from 'https://esm.sh/react-dom@18.2.0/client';
+        import * as Lucide from 'https://esm.sh/lucide-react@0.400.0?deps=react@18.2.0';
+        import { motion, AnimatePresence } from 'https://esm.sh/framer-motion@11.11.11?deps=react@18.2.0';
+        import JSZip from 'https://esm.sh/jszip@3.10.1';
+        import { clsx } from 'https://esm.sh/clsx@2.1.1';
+        import { twMerge } from 'https://esm.sh/tailwind-merge@2.3.0';
+
+        /** 
+         * UTILS: cn
+         */
+        function cn(...inputs) {
+            return twMerge(clsx(inputs));
+        }
+
+        /**
+         * UTILS: License
+         */
+        const LICENSE_STORAGE_KEY = 'chatkeeper_license_v2';
+        const DEVICE_ID_KEY = 'chatkeeper_device_id';
+
+        function getDeviceId() {
+            let id = localStorage.getItem(DEVICE_ID_KEY);
+            if (!id) {
+                id = 'ck-' + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+                localStorage.setItem(DEVICE_ID_KEY, id);
+            }
+            return id;
+        }
+
+        async function activateLicense(key) {
+            // Simulation for standalone version
+            if (key === 'CK-FREE-2026' || key.length > 10) {
+                const token = {
+                    key,
+                    deviceId: getDeviceId(),
+                    activatedAt: Date.now(),
+                    expiresAt: Date.now() + (1000 * 60 * 60 * 24 * 365)
+                };
+                localStorage.setItem(LICENSE_STORAGE_KEY, JSON.stringify(token));
+                return { success: true };
+            }
+            return { success: false, error: 'Invalid license key. Use CK-FREE-2026 for testing.' };
+        }
+
+        function checkLicense() {
+            const stored = localStorage.getItem(LICENSE_STORAGE_KEY);
+            if (!stored) return false;
+            try {
+                const token = JSON.parse(stored);
+                if (token.deviceId !== getDeviceId()) return false;
+                if (token.expiresAt < Date.now()) return false;
+                return true;
+            } catch (e) {
+                return false;
+            }
+        }
+
+        function deactivateLicense() {
+            localStorage.removeItem(LICENSE_STORAGE_KEY);
+        }
+
+        /**
+         * UTILS: Parser
+         */
+        function parseConversation(raw) {
+            const messages = [];
+            const mapping = raw.mapping || {};
+            
+            // Find root or start from current_node
+            let currentNodeId = raw.current_node;
+            const path = [];
+            
+            while (currentNodeId && mapping[currentNodeId]) {
+                const node = mapping[currentNodeId];
+                if (node.message) {
+                    path.unshift(node);
+                }
+                currentNodeId = node.parent;
+            }
+
+            path.forEach(node => {
+                const msg = node.message;
+                if (!msg || !msg.content || !msg.content.parts) return;
+                
+                const content = msg.content.parts.join('\n');
+                if (!content.trim()) return;
+
+                messages.push({
+                    id: msg.id,
+                    role: msg.author.role === 'assistant' ? 'assistant' : 'user',
+                    content: content,
+                    timestamp: msg.create_time,
+                    model: msg.metadata?.model_slug,
+                    feedback: msg.metadata?.user_context_message_data?.user_feedback?.type
+                });
+            });
+
+            const analysis = runHeuristicAnalysis(messages);
+
+            return {
+                id: raw.id || Math.random().toString(36).substr(2, 9),
+                title: raw.title || 'Untitled Conversation',
+                createdAt: raw.create_time * 1000,
+                updatedAt: raw.update_time * 1000,
+                messages,
+                tags: generateTags(analysis),
+                analysis,
+                isStarred: false,
+                isHidden: false
+            };
+        }
+
+        function runHeuristicAnalysis(messages) {
+            const fullText = messages.map(m => m.content).join(' ');
+            const userText = messages.filter(m => m.role === 'user').map(m => m.content).join(' ');
+            const assistantText = messages.filter(m => m.role === 'assistant').map(m => m.content).join(' ');
+
+            const wordCount = fullText.split(/\s+/).length;
+            const codeBlockCount = (fullText.match(/```/g) || []).length / 2;
+            
+            // Sentiment (Crude)
+            const posWords = ['good', 'great', 'awesome', 'thanks', 'thank', 'perfect', 'help', 'useful', 'yes', 'correct'];
+            const negWords = ['bad', 'wrong', 'error', 'fail', 'no', 'incorrect', 'issue', 'bug', 'slow', 'stupid'];
+            
+            let posScore = 0;
+            let negScore = 0;
+            
+            fullText.toLowerCase().split(/\W+/).forEach(w => {
+                if (posWords.includes(w)) posScore++;
+                if (negWords.includes(w)) negScore++;
+            });
+
+            const sentiment = posScore > negScore ? 'Positive' : negScore > posScore ? 'Negative' : 'Neutral';
+
+            // Topic (Crude)
+            const topics = {
+                'Coding': ['code', 'function', 'variable', 'api', 'react', 'python', 'javascript', 'error', 'debug'],
+                'Creative': ['story', 'poem', 'write', 'creative', 'novel', 'character', 'plot'],
+                'Business': ['marketing', 'strategy', 'business', 'plan', 'revenue', 'customer', 'product'],
+                'Learning': ['explain', 'learn', 'what is', 'how to', 'concept', 'history', 'science']
+            };
+
+            let topTopic = 'General';
+            let maxHits = 0;
+            Object.entries(topics).forEach(([topic, keywords]) => {
+                let hits = 0;
+                fullText.toLowerCase().split(/\W+/).forEach(w => {
+                    if (keywords.includes(w)) hits++;
+                });
+                if (hits > maxHits) {
+                    maxHits = hits;
+                    topTopic = topic;
+                }
+            });
+
+            // Importance Score
+            const importanceScore = Math.min(100, Math.floor((wordCount / 100) + (codeBlockCount * 10) + (posScore * 2)));
+
+            return {
+                sentiment,
+                topic: topTopic,
+                wordCount,
+                codeBlockCount,
+                importanceScore,
+                hasLikes: messages.some(m => m.feedback === 'thumbsUp'),
+                hasDislikes: messages.some(m => m.feedback === 'thumbsDown'),
+                promptType: messages.length > 10 ? 'Deep Dive' : 'Quick Query',
+                wordFreq: getWordFreq(fullText),
+                userWordFreq: getWordFreq(userText),
+                assistantWordFreq: getWordFreq(assistantText)
+            };
+        }
+
+        function getWordFreq(text) {
+            const freq = {};
+            const stopWords = ['the', 'a', 'an', 'and', 'or', 'but', 'is', 'are', 'was', 'were', 'to', 'of', 'in', 'on', 'at', 'by', 'for', 'with', 'about', 'as', 'it', 'its', 'they', 'them', 'their', 'this', 'that', 'these', 'those', 'i', 'me', 'my', 'we', 'us', 'our', 'you', 'your', 'he', 'him', 'his', 'she', 'her', 'has', 'have', 'had', 'do', 'does', 'did', 'be', 'been', 'being'];
+            
+            text.toLowerCase().split(/\W+/).forEach(w => {
+                if (w.length > 2 && !stopWords.includes(w)) {
+                    freq[w] = (freq[w] || 0) + 1;
+                }
+            });
+            return freq;
+        }
+
+        function generateTags(analysis) {
+            return [
+                `Topic: ${analysis.topic}`,
+                `Sentiment: ${analysis.sentiment}`,
+                `Type: ${analysis.promptType}`,
+                `Length: ${analysis.wordCount > 1000 ? 'Long' : 'Short'}`,
+                analysis.hasLikes ? 'Feedback: Liked' : null,
+                analysis.codeBlockCount > 0 ? 'Feature: Code' : null
+            ].filter(Boolean);
+        }
+
+        function getSnippet(text, term) {
+            if (!term) return text.substring(0, 200) + '...';
+            const index = text.toLowerCase().indexOf(term.toLowerCase());
+            if (index === -1) return text.substring(0, 200) + '...';
+            
+            const start = Math.max(0, index - 100);
+            const end = Math.min(text.length, index + 100);
+            return (start > 0 ? '...' : '') + text.substring(start, end) + (end < text.length ? '...' : '');
+        }
+
+        function fuzzySearchText(text, term) {
+            const t = term.toLowerCase();
+            const content = text.toLowerCase();
+            if (content.includes(t)) return true;
+            
+            // Simple fuzzy: allow 1 char difference if term > 4
+            if (t.length <= 4) return false;
+            
+            for (let i = 0; i < t.length; i++) {
+                const variant = t.substring(0, i) + t.substring(i + 1);
+                if (content.includes(variant)) return true;
+            }
+            return false;
+        }
+
+        function exportMultipleToText(convs) {
+            return convs.map(c => {
+                let text = `TITLE: ${c.title}\n`;
+                text += `DATE: ${new Date(c.createdAt).toLocaleString()}\n`;
+                text += `TAGS: ${c.tags.join(', ')}\n`;
+                text += `IMPORTANCE: ${c.analysis.importanceScore}\n`;
+                text += `\n${'='.repeat(50)}\n\n`;
+                
+                c.messages.forEach(m => {
+                    text += `[${m.role.toUpperCase()}] (${m.model || 'unknown'})\n`;
+                    text += `${m.content}\n\n`;
+                    text += `${'-'.repeat(30)}\n\n`;
+                });
+                
+                return text;
+            }).join(`\n\n${'#'.repeat(80)}\n\n`);
+        }
+
+        function exportToJSONL(conversations) {
+            return conversations.map(c => {
+                const doc = {
+                    id: c.id,
+                    text: exportMultipleToText([c]),
+                    metadata: {
+                        title: c.title,
+                        date: new Date(c.createdAt).toISOString(),
+                        topic: c.analysis.topic,
+                        tags: c.tags,
+                        score: c.analysis.importanceScore,
+                        has_likes: c.analysis.hasLikes,
+                        has_dislikes: c.analysis.hasDislikes
+                    }
+                };
+                return JSON.stringify(doc);
+            }).join('\n');
+        }
+
+        function exportPrompts(conversations) {
+            const prompts = conversations.map(c => {
+                const firstUserMsg = c.messages.find(m => m.role === 'user');
+                return {
+                    title: c.title,
+                    prompt: firstUserMsg ? firstUserMsg.content : "No prompt found",
+                    tags: c.tags
+                };
+            });
+            return JSON.stringify(prompts, null, 2);
+        }
+
+        /**
+         * COMPONENTS: HyperlinkedText
+         */
+        const HyperlinkedText = ({ content, onSearch }) => {
+            const tokens = useMemo(() => content.split(/(\s+)/), [content]);
+            return React.createElement('span', { className: 'break-words' },
+                tokens.map((token, index) => {
+                    if (/^\s+$/.test(token)) return React.createElement('span', { key: index }, token);
+                    const match = token.match(/^([^\w]*)([\w'-]+)([^\w]*)$/);
+                    if (!match) return React.createElement('span', { key: index }, token);
+                    const [full, prefix, word, suffix] = match;
+                    return React.createElement('span', { key: index },
+                        prefix,
+                        React.createElement('span', {
+                            onClick: (e) => { e.stopPropagation(); onSearch(word); },
+                            className: 'cursor-pointer hover:text-indigo-600 hover:bg-indigo-50 hover:underline decoration-indigo-300 underline-offset-2 transition-colors rounded-sm px-0.5 -mx-0.5',
+                            title: `Search for "${word}"`
+                        }, word),
+                        suffix
+                    );
+                })
+            );
+        };
+
+        /**
+         * COMPONENTS: GlobalSearchBar
+         */
+        const GlobalSearchBar = ({ config, onChange, isTutorialMode, onToggleMenu }) => {
+            const [isPopupOpen, setIsPopupOpen] = useState(false);
+            const update = (updates) => onChange({ ...config, ...updates });
+
+            return React.createElement('div', { className: 'bg-white border-b border-slate-200 p-2 md:p-4 sticky top-0 z-30 shadow-sm flex items-center justify-center' },
+                React.createElement('div', { className: 'max-w-3xl w-full relative flex items-center gap-2' },
+                    React.createElement('button', {
+                        onClick: onToggleMenu,
+                        className: 'md:hidden p-2.5 rounded-xl border border-slate-200 text-slate-600 bg-white hover:bg-slate-50 transition-colors'
+                    }, React.createElement(Lucide.Menu, { className: 'w-5 h-5' })),
+                    React.createElement('div', { className: 'relative flex-1' },
+                        React.createElement(Lucide.Search, { className: 'absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400' }),
+                        React.createElement('input', {
+                            type: 'text',
+                            placeholder: 'Search...',
+                            className: 'w-full pl-12 pr-4 py-2.5 bg-slate-100 border-transparent focus:bg-white border focus:border-indigo-500 focus:ring-0 rounded-xl text-sm transition-all shadow-sm truncate',
+                            value: config.term,
+                            onChange: (e) => update({ term: e.target.value })
+                        })
+                    ),
+                    React.createElement('div', { className: 'relative' },
+                        React.createElement('button', {
+                            onClick: () => setIsPopupOpen(!isPopupOpen),
+                            className: cn('p-2.5 rounded-xl border transition-colors', isPopupOpen ? 'bg-indigo-50 border-indigo-200 text-indigo-600' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50')
+                        }, React.createElement(Lucide.Sliders, { className: 'w-5 h-5' })),
+                        isPopupOpen && React.createElement('div', { className: 'absolute top-full right-0 mt-2 w-80 max-w-[calc(100vw-2rem)] bg-white rounded-xl shadow-2xl border border-slate-200 p-4 z-50 animate-in slide-in-from-top-2' },
+                            React.createElement('div', { className: 'flex justify-between items-center mb-4 border-b border-slate-100 pb-2' },
+                                React.createElement('h3', { className: 'font-bold text-slate-800 text-sm' }, 'Search Settings'),
+                                React.createElement('button', { onClick: () => setIsPopupOpen(false), className: 'text-slate-400 hover:text-slate-600' }, React.createElement(Lucide.X, { className: 'w-4 h-4' }))
+                            ),
+                            React.createElement('div', { className: 'space-y-4' },
+                                React.createElement('div', { className: 'space-y-2' },
+                                    React.createElement('button', {
+                                        onClick: () => update({ includeHidden: !config.includeHidden }),
+                                        className: 'flex items-center justify-between w-full p-2 hover:bg-slate-50 rounded-lg transition-colors'
+                                    },
+                                        React.createElement('div', { className: 'flex items-center gap-2 text-sm text-slate-700' },
+                                            config.includeHidden ? React.createElement(Lucide.Eye, { className: 'w-4 h-4 text-indigo-500' }) : React.createElement(Lucide.EyeOff, { className: 'w-4 h-4 text-slate-400' }),
+                                            React.createElement('span', null, 'Include Hidden')
+                                        ),
+                                        config.includeHidden ? React.createElement(Lucide.ToggleRight, { className: 'w-6 h-6 text-indigo-600' }) : React.createElement(Lucide.ToggleLeft, { className: 'w-6 h-6 text-slate-300' })
+                                    ),
+                                    React.createElement('button', {
+                                        onClick: () => update({ isFuzzy: !config.isFuzzy }),
+                                        className: 'flex items-center justify-between w-full p-2 hover:bg-slate-50 rounded-lg transition-colors'
+                                    },
+                                        React.createElement('div', { className: 'flex items-center gap-2 text-sm text-slate-700' },
+                                            React.createElement('span', { className: 'font-mono bg-slate-100 px-1 rounded text-xs text-slate-500' }, '~'),
+                                            React.createElement('span', null, 'Fuzzy Matching')
+                                        ),
+                                        config.isFuzzy ? React.createElement(Lucide.ToggleRight, { className: 'w-6 h-6 text-indigo-600' }) : React.createElement(Lucide.ToggleLeft, { className: 'w-6 h-6 text-slate-300' })
+                                    )
+                                ),
+                                React.createElement('div', null,
+                                    React.createElement('label', { className: 'text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 block' }, 'Sort Results'),
+                                    React.createElement('select', {
+                                        className: 'w-full bg-slate-50 border border-slate-200 text-sm rounded-lg py-2 px-3 text-slate-700',
+                                        value: config.sortOrder,
+                                        onChange: (e) => update({ sortOrder: e.target.value })
+                                    },
+                                        React.createElement('option', { value: 'newest' }, 'Newest First'),
+                                        React.createElement('option', { value: 'oldest' }, 'Oldest First'),
+                                        React.createElement('option', { value: 'relevance' }, 'Relevance')
+                                    )
+                                )
+                            )
+                        )
+                    )
+                )
+            );
+        };
+
+        /**
+         * VIEWS: SearchView
+         */
+        const SearchView = ({ conversations, onSelect, config, onToggleStar, onToggleHidden }) => {
+            const [expandedResults, setExpandedResults] = useState(new Set());
+
+            const parsedQuery = useMemo(() => {
+                const groups = config.term.split('|');
+                const orGroups = groups.map(groupStr => {
+                    const mustContain = [];
+                    const exactPhrases = [];
+                    const mustExclude = [];
+                    const regex = /"([^"]+)"|(-[^\s]+)|([^\s]+)/g;
+                    let match;
+                    while ((match = regex.exec(groupStr)) !== null) {
+                        if (match[1]) exactPhrases.push(match[1].toLowerCase());
+                        else if (match[2]) mustExclude.push(match[2].substring(1).toLowerCase());
+                        else if (match[3]) mustContain.push(match[3].toLowerCase());
+                    }
+                    return { mustContain, exactPhrases, mustExclude };
+                });
+                return { orGroups };
+            }, [config.term]);
+
+            const results = useMemo(() => {
+                if (!config.term || config.term.trim().length < 2) return [];
+                const hits = [];
+
+                conversations.forEach(conv => {
+                    if (conv.isHidden && !config.includeHidden) return;
+                    const tagsString = (conv.tags || []).join(' ').toLowerCase();
+                    const titleLower = conv.title.toLowerCase();
+                    const hasLikes = conv.analysis?.hasLikes;
+                    const hasDislikes = conv.analysis?.hasDislikes;
+
+                    const metaMatchesGroup = parsedQuery.orGroups.some(group => {
+                        const hasExcluded = group.mustExclude.some(ex => titleLower.includes(ex) || tagsString.includes(ex));
+                        if (hasExcluded) return false;
+                        const hasAllPhrases = group.exactPhrases.every(ph => titleLower.includes(ph) || tagsString.includes(ph));
+                        if (!hasAllPhrases) return false;
+                        return group.mustContain.every(t => {
+                            if ((t === 'liked' || t === 'positive' || t === 'good') && hasLikes) return true;
+                            if ((t === 'disliked' || t === 'negative' || t === 'bad') && hasDislikes) return true;
+                            return titleLower.includes(t) || tagsString.includes(t);
+                        });
+                    });
+
+                    if (metaMatchesGroup) {
+                        hits.push({
+                            conversationId: conv.id,
+                            conversationTitle: conv.title,
+                            messageId: conv.messages[0]?.id || 'meta-match',
+                            timestamp: conv.createdAt,
+                            snippet: conv.messages[0]?.content || "Matched via Title or Tags",
+                            score: 100
+                        });
+                    }
+
+                    conv.messages.forEach(msg => {
+                        const contentLower = msg.content.toLowerCase();
+                        const matchesGroup = parsedQuery.orGroups.some(group => {
+                            const hasExcluded = group.mustExclude.some(ex => contentLower.includes(ex));
+                            if (hasExcluded) return false;
+                            const hasAllPhrases = group.exactPhrases.every(ph => contentLower.includes(ph));
+                            if (!hasAllPhrases) return false;
+                            const hasAllTerms = group.mustContain.every(t => {
+                                if (config.isFuzzy && t.length > 3) return fuzzySearchText(msg.content, t);
+                                return contentLower.includes(t);
+                            });
+                            return hasAllTerms;
+                        });
+
+                        if (matchesGroup) {
+                            let score = 0;
+                            parsedQuery.orGroups.forEach(g => {
+                                g.mustContain.forEach(t => { score += contentLower.split(t).length - 1; });
+                                g.exactPhrases.forEach(p => { score += (contentLower.split(p).length - 1) * 2; });
+                            });
+                            hits.push({
+                                conversationId: conv.id,
+                                conversationTitle: conv.title,
+                                messageId: msg.id,
+                                timestamp: msg.timestamp || conv.createdAt,
+                                snippet: msg.content,
+                                score: score || 1
+                            });
+                        }
+                    });
+                });
+
+                const uniqueIds = new Set();
+                const uniqueHits = hits.filter(hit => {
+                    const key = hit.conversationId + hit.messageId;
+                    if (uniqueIds.has(key)) return false;
+                    uniqueIds.add(key);
+                    return true;
+                });
+
+                return uniqueHits.sort((a, b) => {
+                    if (config.sortOrder === 'relevance') {
+                        if (b.score !== a.score) return b.score - a.score;
+                        return b.timestamp - a.timestamp;
+                    }
+                    if (config.sortOrder === 'oldest') return a.timestamp - b.timestamp;
+                    return b.timestamp - a.timestamp;
+                }).slice(0, 50);
+            }, [parsedQuery, conversations, config.sortOrder, config.isFuzzy, config.term, config.includeHidden]);
+
+            const toggleExpand = (e, id) => {
+                e.stopPropagation();
+                const newSet = new Set(expandedResults);
+                if (newSet.has(id)) newSet.delete(id);
+                else newSet.add(id);
+                setExpandedResults(newSet);
+            };
+
+            const highlightText = (text) => {
+                const highlights = [];
+                parsedQuery.orGroups.forEach(g => {
+                    highlights.push(...g.mustContain);
+                    highlights.push(...g.exactPhrases);
+                });
+                if (highlights.length === 0) return text;
+                const colors = [
+                    'bg-yellow-200 text-yellow-900 border-yellow-300',
+                    'bg-cyan-200 text-cyan-900 border-cyan-300',
+                    'bg-green-200 text-green-900 border-green-300',
+                    'bg-fuchsia-200 text-fuchsia-900 border-fuchsia-300',
+                ];
+                const sortedHighlights = [...new Set(highlights)].sort((a, b) => b.length - a.length);
+                const pattern = sortedHighlights.map(h => h.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+                const regex = new RegExp(`(${pattern})`, 'gi');
+                return text.replace(regex, (match) => {
+                    const lowerMatch = match.toLowerCase();
+                    const index = sortedHighlights.findIndex(h => h === lowerMatch);
+                    const colorClass = colors[index % colors.length] || colors[0];
+                    return `<span class="${colorClass} border-b-2 font-bold px-1 rounded-t mx-0.5 shadow-sm inline-block leading-none py-0.5">${match}</span>`;
+                });
+            };
+
+            return React.createElement('div', { className: 'flex-1 overflow-y-auto p-6 bg-slate-50 custom-scrollbar' },
+                !config.term ? React.createElement('div', { className: 'max-w-4xl mx-auto mt-10' },
+                    React.createElement('div', { className: 'text-center mb-10' },
+                        React.createElement('h3', { className: 'text-xl font-bold text-slate-800 mb-2' }, 'Search Guide'),
+                        React.createElement('p', { className: 'text-slate-500' }, 'Master the search syntax to find exactly what you need.')
+                    ),
+                    React.createElement('div', { className: 'grid grid-cols-1 md:grid-cols-2 gap-6' },
+                        [
+                            { label: 'Space', title: 'AND Operator', desc: 'Use a space between words to find messages containing ALL terms.', ex: 'python error' },
+                            { label: 'Metadata', title: 'Tag Search', desc: 'You can search for analysis tags directly.', ex: 'liked, coding' },
+                            { label: '|', title: 'OR Operator', desc: 'Use the pipe symbol to find messages containing ANY of the terms.', ex: 'react | vue | angular' },
+                            { label: '" "', title: 'Exact Phrase', desc: 'Wrap words in quotes to find that exact sequence of text.', ex: '"connection failed"' }
+                        ].map(item => React.createElement('div', { key: item.title, className: 'bg-white p-5 rounded-xl border border-slate-200 shadow-sm' },
+                            React.createElement('div', { className: 'flex items-center gap-3 mb-3' },
+                                React.createElement('span', { className: 'font-mono bg-indigo-50 text-indigo-700 px-2 py-1 rounded text-sm font-bold border border-indigo-100' }, item.label),
+                                React.createElement('h4', { className: 'font-semibold text-slate-700' }, item.title)
+                            ),
+                            React.createElement('p', { className: 'text-sm text-slate-600 mb-2' }, item.desc),
+                            React.createElement('div', { className: 'bg-slate-50 p-2 rounded text-xs font-mono text-slate-500' }, 'Example: ', React.createElement('span', { className: 'text-indigo-600 font-bold' }, item.ex))
+                        ))
+                    )
+                ) : results.length === 0 ? React.createElement('div', { className: 'text-center py-20 text-slate-500' },
+                    `No results found for "${config.term}" ${config.isFuzzy ? '(Fuzzy On)' : ''} ${config.includeHidden ? '' : '(Hidden chats excluded)'}.`
+                ) : React.createElement('div', { className: 'max-w-4xl mx-auto space-y-4' },
+                    React.createElement('p', { className: 'text-sm font-semibold text-slate-500 uppercase tracking-wider mb-4 flex justify-between' },
+                        React.createElement('span', null, `Found ${results.length} matches`),
+                        config.sortOrder === 'relevance' && React.createElement('span', { className: 'text-indigo-500 text-xs' }, 'Sorted by Relevance')
+                    ),
+                    results.map((res, idx) => {
+                        const isExpanded = expandedResults.has(res.messageId);
+                        const conv = conversations.find(c => c.id === res.conversationId);
+                        const isStarred = conv?.isStarred || false;
+                        const isHidden = conv?.isHidden || false;
+                        let primaryTerm = '';
+                        if (parsedQuery.orGroups.length > 0) {
+                            const g = parsedQuery.orGroups[0];
+                            primaryTerm = g.mustContain[0] || g.exactPhrases[0] || '';
+                        }
+                        const displayContent = isExpanded ? res.snippet : getSnippet(res.snippet, primaryTerm);
+                        return React.createElement('div', {
+                            key: `${res.conversationId}-${res.messageId}-${idx}`,
+                            onClick: () => onSelect(res.conversationId),
+                            className: cn('bg-white p-5 rounded-xl border border-slate-200 hover:border-indigo-300 hover:shadow-md transition-all cursor-pointer group relative pr-12', isHidden && 'opacity-70 bg-slate-50')
+                        },
+                            React.createElement('div', { className: 'absolute top-4 right-4 z-10 flex flex-col gap-2' },
+                                React.createElement('button', {
+                                    onClick: (e) => { e.stopPropagation(); onToggleStar(res.conversationId); },
+                                    className: cn('p-1.5 rounded-lg hover:bg-slate-100 transition-colors', isStarred ? 'text-amber-500' : 'text-slate-300 hover:text-amber-500')
+                                }, React.createElement(Lucide.Star, { className: cn('w-5 h-5', isStarred && 'fill-current') })),
+                                React.createElement('button', {
+                                    onClick: (e) => { e.stopPropagation(); onToggleHidden(res.conversationId); },
+                                    className: cn('p-1.5 rounded-lg hover:bg-slate-100 transition-colors', isHidden ? 'text-slate-600' : 'text-slate-300 hover:text-slate-600')
+                                }, isHidden ? React.createElement(Lucide.Eye, { className: 'w-5 h-5' }) : React.createElement(Lucide.EyeOff, { className: 'w-5 h-5' }))
+                            ),
+                            React.createElement('div', { className: 'flex justify-between items-start mb-2' },
+                                React.createElement('h3', { className: cn('font-semibold group-hover:underline decoration-indigo-300 underline-offset-2 pr-8', isHidden ? 'text-slate-500 line-through' : 'text-indigo-700') }, res.conversationTitle),
+                                React.createElement('span', { className: 'text-xs text-slate-400 mt-1' }, new Date(res.timestamp * 1000).toLocaleDateString())
+                            ),
+                            isHidden && React.createElement('div', { className: 'text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded inline-block mb-2 font-medium' }, 'Hidden from search'),
+                            React.createElement('div', { className: 'flex gap-3 items-start' },
+                                React.createElement(Lucide.MessageSquare, { className: 'w-4 h-4 text-slate-300 mt-1 shrink-0' }),
+                                React.createElement('div', { className: 'flex-1 min-w-0' },
+                                    React.createElement('div', { className: 'text-sm text-slate-600 leading-relaxed font-mono bg-slate-50 p-3 rounded w-full whitespace-pre-wrap' },
+                                        React.createElement('span', { dangerouslySetInnerHTML: { __html: highlightText(displayContent) } })
+                                    ),
+                                    React.createElement('div', { className: 'flex items-center gap-2 mt-2' },
+                                        React.createElement('button', {
+                                            onClick: (e) => toggleExpand(e, res.messageId),
+                                            className: 'text-xs font-medium text-slate-400 hover:text-indigo-600 flex items-center gap-1 transition-colors'
+                                        }, isExpanded ? React.createElement(React.Fragment, null, React.createElement(Lucide.ChevronUp, { className: 'w-3 h-3' }), ' Show Less') : React.createElement(React.Fragment, null, React.createElement(Lucide.ChevronDown, { className: 'w-3 h-3' }), ' Show Full Message')),
+                                        conv?.tags.length > 0 && React.createElement('span', { className: 'ml-auto text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded truncate max-w-[150px]' }, conv.tags.find(t => t.startsWith('Topic:'))?.replace('Topic: ', '') || 'Matches')
+                                    )
+                                )
+                            ),
+                            React.createElement('div', { className: 'mt-3 flex justify-end items-center gap-3' },
+                                React.createElement('span', { className: 'text-xs font-medium text-indigo-500 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity' }, 'Go to conversation ', React.createElement(Lucide.ArrowRight, { className: 'w-3 h-3' }))
+                            )
+                        );
+                    })
+                )
+            );
+        };
+
+        /**
+         * VIEWS: CollectionsView
+         */
+        const CollectionsView = ({ conversations, onSelect, onToggleStar }) => {
+            const starred = conversations.filter(c => c.isStarred);
+            const handleExportText = () => {
+                const text = exportMultipleToText(starred);
+                const blob = new Blob([text], { type: 'text/plain' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `chatkeeper_collection_${starred.length}.txt`;
+                a.click();
+            };
+            const handleExportJSON = () => {
+                const json = JSON.stringify(starred, null, 2);
+                const blob = new Blob([json], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `chatkeeper_collection_${starred.length}.json`;
+                a.click();
+            };
+            return React.createElement('div', { className: 'flex-1 flex flex-col h-full bg-slate-50 overflow-hidden' },
+                React.createElement('div', { className: 'p-6 border-b border-slate-200 bg-white sticky top-0 z-10 flex justify-between items-center shadow-sm' },
+                    React.createElement('div', { className: 'flex items-center gap-3' },
+                        React.createElement('div', { className: 'p-2 bg-amber-50 text-amber-500 rounded-lg' }, React.createElement(Lucide.Star, { className: 'w-6 h-6 fill-current' })),
+                        React.createElement('div', null,
+                            React.createElement('h2', { className: 'text-2xl font-bold text-slate-800' }, 'Collections'),
+                            React.createElement('p', { className: 'text-slate-500 text-sm' }, `You have ${starred.length} starred items.`)
+                        )
+                    ),
+                    React.createElement('div', { className: 'flex items-center gap-2' },
+                        React.createElement('button', { onClick: handleExportText, disabled: starred.length === 0, className: 'flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 text-slate-600 rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors disabled:opacity-50' }, React.createElement(Lucide.FileText, { className: 'w-4 h-4' }), ' Export TXT'),
+                        React.createElement('button', { onClick: handleExportJSON, disabled: starred.length === 0, className: 'flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 text-slate-600 rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors disabled:opacity-50' }, React.createElement(Lucide.Database, { className: 'w-4 h-4' }), ' Export JSON')
+                    )
+                ),
+                React.createElement('div', { className: 'flex-1 overflow-y-auto p-6 custom-scrollbar' },
+                    starred.length === 0 ? React.createElement('div', { className: 'flex flex-col items-center justify-center h-full text-center space-y-4 opacity-50' },
+                        React.createElement(Lucide.Star, { className: 'w-16 h-16 text-slate-300' }),
+                        React.createElement('p', { className: 'text-lg font-medium text-slate-900' }, 'No starred conversations yet.'),
+                        React.createElement('p', { className: 'text-sm' }, 'Click the Star icon on any chat to add it here.')
+                    ) : React.createElement('div', { className: 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4' },
+                        starred.map(conv => React.createElement('div', {
+                            key: conv.id,
+                            onClick: () => onSelect(conv.id),
+                            className: 'group bg-white rounded-xl border border-slate-200 p-4 hover:shadow-lg hover:border-amber-300 transition-all cursor-pointer flex flex-col h-52 relative overflow-hidden'
+                        },
+                            React.createElement('div', { className: 'flex justify-between items-start mb-2' },
+                                React.createElement('div', { className: 'p-2 bg-amber-50 rounded-lg text-amber-500' }, React.createElement(Lucide.Star, { className: 'w-5 h-5 fill-current' })),
+                                React.createElement('button', {
+                                    onClick: (e) => { e.stopPropagation(); onToggleStar(conv.id); },
+                                    className: 'p-1 hover:bg-red-50 text-slate-300 hover:text-red-500 rounded transition-colors',
+                                    title: 'Unstar'
+                                }, React.createElement(Lucide.Trash2, { className: 'w-4 h-4' }))
+                            ),
+                            React.createElement('h3', { className: 'font-semibold text-slate-800 line-clamp-2 mb-2 group-hover:text-amber-600 transition-colors' }, conv.title),
+                            React.createElement('div', { className: 'text-xs text-slate-500 line-clamp-2 mb-4 flex-1' }, conv.messages.length > 0 ? conv.messages[conv.messages.length - 1].content.substring(0, 150) : 'Empty conversation'),
+                            React.createElement('div', { className: 'flex items-center justify-between border-t border-slate-100 pt-3 mt-auto' },
+                                React.createElement('span', { className: 'text-[10px] font-medium text-slate-400' }, new Date(conv.createdAt).toLocaleDateString()),
+                                conv.tags.length > 0 && React.createElement('span', { className: 'text-[10px] px-2 py-0.5 bg-slate-100 text-slate-600 rounded-md truncate max-w-[100px]' }, conv.tags[0].replace(/^(Topic|Type|Tone|Model|Feedback|Length|Prompt): /, ''))
+                            )
+                        ))
+                    )
+                )
+            );
+        };
+
+        /**
+         * VIEWS: PromptsView
+         */
+        const PromptsView = ({ conversations, onSelect }) => {
+            const [searchTerm, setSearchTerm] = useState('');
+            const [selectedIds, setSelectedIds] = useState(new Set());
+            const [copiedId, setCopiedId] = useState(null);
+            const promptData = useMemo(() => {
+                return conversations.map(c => {
+                    const firstUserMsg = c.messages.find(m => m.role === 'user');
+                    return { id: c.id, title: c.title, prompt: firstUserMsg ? firstUserMsg.content : "No prompt detected.", tags: c.tags, date: c.createdAt };
+                }).filter(item => {
+                    if (!searchTerm) return true;
+                    return item.prompt.toLowerCase().includes(searchTerm.toLowerCase()) || item.title.toLowerCase().includes(searchTerm.toLowerCase());
+                });
+            }, [conversations, searchTerm]);
+            const toggleSelect = (id) => {
+                const newSet = new Set(selectedIds);
+                if (newSet.has(id)) newSet.delete(id);
+                else newSet.add(id);
+                setSelectedIds(newSet);
+            };
+            const handleCopy = (id, text) => {
+                navigator.clipboard.writeText(text);
+                setCopiedId(id);
+                setTimeout(() => setCopiedId(null), 2000);
+            };
+            const handleExport = (format) => {
+                const targetItems = promptData.filter(p => selectedIds.has(p.id));
+                if (targetItems.length === 0) return;
+                let content = '', filename = `chatkeeper_prompts_${targetItems.length}`, mime = 'text/plain';
+                if (format === 'json') {
+                    content = JSON.stringify(targetItems, null, 2);
+                    mime = 'application/json';
+                    filename += '.json';
+                } else {
+                    content = targetItems.map(p => `Title: ${p.title}\nTags: ${p.tags.join(', ')}\nPrompt:\n${p.prompt}\n\n${'-'.repeat(40)}\n\n`).join('');
+                    filename += '.txt';
+                }
+                const blob = new Blob([content], { type: mime });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                a.click();
+            };
+            return React.createElement('div', { className: 'flex-1 flex flex-col h-full bg-slate-50 overflow-hidden' },
+                React.createElement('div', { className: 'p-6 border-b border-slate-200 bg-white sticky top-0 z-10 shadow-sm' },
+                    React.createElement('div', { className: 'flex justify-between items-center mb-4' },
+                        React.createElement('div', { className: 'flex items-center gap-3' },
+                            React.createElement('div', { className: 'p-2 bg-indigo-50 text-indigo-600 rounded-lg' }, React.createElement(Lucide.Terminal, { className: 'w-6 h-6' })),
+                            React.createElement('div', null,
+                                React.createElement('h2', { className: 'text-2xl font-bold text-slate-800' }, 'Prompt Library'),
+                                React.createElement('p', { className: 'text-slate-500 text-sm' }, 'Extracted initial prompts from your chats.')
+                            )
+                        ),
+                        selectedIds.size > 0 && React.createElement('div', { className: 'flex items-center gap-2' },
+                            React.createElement('span', { className: 'text-xs font-bold text-slate-400 uppercase mr-2' }, `${selectedIds.size} Selected`),
+                            React.createElement('button', { onClick: () => handleExport('txt'), className: 'flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 text-slate-600 rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors' }, React.createElement(Lucide.Download, { className: 'w-4 h-4' }), ' TXT'),
+                            React.createElement('button', { onClick: () => handleExport('json'), className: 'flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 text-slate-600 rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors' }, React.createElement(Lucide.Download, { className: 'w-4 h-4' }), ' JSON')
+                        )
+                    ),
+                    React.createElement('div', { className: 'relative' },
+                        React.createElement(Lucide.Search, { className: 'absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400' }),
+                        React.createElement('input', {
+                            type: 'text',
+                            placeholder: 'Search prompts...',
+                            className: 'w-full pl-10 pr-4 py-2 bg-slate-100 border-none rounded-lg text-sm focus:ring-2 focus:ring-indigo-500',
+                            value: searchTerm,
+                            onChange: (e) => setSearchTerm(e.target.value)
+                        })
+                    )
+                ),
+                React.createElement('div', { className: 'flex-1 overflow-y-auto p-6 custom-scrollbar' },
+                    React.createElement('div', { className: 'flex items-center gap-2 mb-4' },
+                        React.createElement('button', { onClick: () => setSelectedIds(selectedIds.size === promptData.length ? new Set() : new Set(promptData.map(p => p.id))), className: 'text-sm text-indigo-600 font-medium hover:underline' }, selectedIds.size === promptData.length ? 'Deselect All' : 'Select All')
+                    ),
+                    React.createElement('div', { className: 'grid grid-cols-1 md:grid-cols-2 gap-4' },
+                        promptData.map(item => React.createElement('div', {
+                            key: item.id,
+                            className: cn('bg-white rounded-xl border p-4 hover:shadow-md transition-all relative flex flex-col', selectedIds.has(item.id) ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200')
+                        },
+                            React.createElement('div', {
+                                onClick: () => toggleSelect(item.id),
+                                className: cn('absolute top-3 right-3 cursor-pointer p-1 rounded hover:bg-black/5 z-20', selectedIds.has(item.id) ? 'text-indigo-600' : 'text-slate-300')
+                            }, selectedIds.has(item.id) ? React.createElement(Lucide.CheckSquare, { className: 'w-5 h-5' }) : React.createElement(Lucide.Square, { className: 'w-5 h-5' })),
+                            React.createElement('div', { className: 'flex-1' },
+                                React.createElement('h3', {
+                                    onClick: () => onSelect(item.id),
+                                    className: 'font-semibold text-slate-800 text-sm mb-1 pr-8 truncate cursor-pointer hover:text-indigo-600 transition-colors'
+                                }, item.title),
+                                React.createElement('div', { className: 'relative group' },
+                                    React.createElement('div', { className: 'bg-slate-50 p-3 rounded-lg border border-slate-100 text-xs text-slate-600 font-mono mb-3 line-clamp-4 h-20 overflow-hidden' }, item.prompt),
+                                    React.createElement('button', {
+                                        onClick: (e) => { e.stopPropagation(); handleCopy(item.id, item.prompt); },
+                                        className: 'absolute top-2 right-2 bg-white shadow-sm border border-slate-200 p-1.5 rounded-md text-slate-400 hover:text-indigo-600 opacity-0 group-hover:opacity-100 transition-opacity'
+                                    }, copiedId === item.id ? React.createElement(Lucide.Check, { className: 'w-3 h-3 text-emerald-500' }) : React.createElement(Lucide.Copy, { className: 'w-3 h-3' }))
+                                ),
+                                React.createElement('div', { className: 'mt-auto flex items-center justify-between' },
+                                    React.createElement('span', { className: 'text-[10px] text-slate-400' }, new Date(item.date).toLocaleDateString()),
+                                    React.createElement('div', { className: 'flex gap-1 overflow-hidden max-w-[60%]' },
+                                        item.tags.slice(0, 2).map(t => React.createElement('span', { key: t, className: 'text-[10px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-500 truncate' }, t.replace(/^(Topic|Type): /, '')))
+                                    )
+                                )
+                            )
+                        ))
+                    ),
+                    promptData.length === 0 && React.createElement('div', { className: 'text-center py-10 text-slate-400' }, 'No prompts found matching your search.')
+                )
+            );
+        };
+
+        /**
+         * VIEWS: InsightsView
+         */
+        const InsightsView = ({ conversations, onSelect, onSearch }) => {
+            const [activeFilter, setActiveFilter] = useState(null);
+            const [sortMode, setSortMode] = useState('score');
+            const [viewMode, setViewMode] = useState('grid');
+            const [selectedIds, setSelectedIds] = useState(new Set());
+            const [wordCloudSource, setWordCloudSource] = useState('combined');
+            const [collapsedSections, setCollapsedSections] = useState(new Set());
+
+            const categories = useMemo(() => {
+                const cats = { 'Topic': new Set(), 'Type': new Set(), 'Tone': new Set(), 'Model': new Set(), 'Feedback': new Set(), 'Length': new Set(), 'Mode': new Set(), 'Feature': new Set() };
+                conversations.forEach(c => {
+                    c.tags.forEach(tag => {
+                        if (tag.startsWith('Topic: ')) cats['Topic'].add(tag);
+                        else if (tag.startsWith('Type: ')) cats['Type'].add(tag);
+                        else if (tag.startsWith('Tone: ')) cats['Tone'].add(tag);
+                        else if (tag.startsWith('Model: ')) cats['Model'].add(tag);
+                        else if (tag.startsWith('Feedback: ')) cats['Feedback'].add(tag);
+                        else if (tag.startsWith('Length: ')) cats['Length'].add(tag);
+                        else if (tag.startsWith('Mode: ')) cats['Mode'].add(tag);
+                        else if (tag.startsWith('Feature: ')) cats['Feature'].add(tag);
+                    });
+                });
+                return cats;
+            }, [conversations]);
+
+            const filteredConversations = useMemo(() => {
+                let filtered = activeFilter ? conversations.filter(c => c.tags.includes(activeFilter)) : conversations;
+                return filtered.sort((a, b) => {
+                    if (sortMode === 'date') return b.createdAt - a.createdAt;
+                    if (sortMode === 'length') return (b.analysis?.wordCount || 0) - (a.analysis?.wordCount || 0);
+                    return (b.analysis?.importanceScore || 0) - (a.analysis?.importanceScore || 0);
+                });
+            }, [conversations, activeFilter, sortMode]);
+
+            const topWords = useMemo(() => {
+                const agg = {};
+                filteredConversations.forEach(c => {
+                    let sourceDict;
+                    if (wordCloudSource === 'combined') sourceDict = c.analysis?.wordFreq;
+                    else if (wordCloudSource === 'user') sourceDict = c.analysis?.userWordFreq;
+                    else if (wordCloudSource === 'assistant') sourceDict = c.analysis?.assistantWordFreq;
+                    if (sourceDict) Object.entries(sourceDict).forEach(([word, count]) => { agg[word] = (agg[word] || 0) + count; });
+                });
+                return Object.entries(agg).sort((a, b) => b[1] - a[1]).slice(0, 100);
+            }, [filteredConversations, wordCloudSource]);
+
+            const toggleSelect = (id, e) => {
+                e.stopPropagation();
+                const newSet = new Set(selectedIds);
+                if (newSet.has(id)) newSet.delete(id);
+                else newSet.add(id);
+                setSelectedIds(newSet);
+            };
+
+            const handleBulkExport = () => {
+                const selectedConvs = conversations.filter(c => selectedIds.has(c.id));
+                const text = exportMultipleToText(selectedConvs);
+                const blob = new Blob([text], { type: 'text/plain' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `chatkeeper_bulk_export_${selectedConvs.length}.txt`;
+                a.click();
+                setSelectedIds(new Set());
+            };
+
+            const renderCategorySection = (title, icon, tags) => {
+                if (tags.size === 0) return null;
+                const isCollapsed = collapsedSections.has(title);
+                return React.createElement('div', { className: 'mb-4' },
+                    React.createElement('button', {
+                        onClick: () => {
+                            const newSet = new Set(collapsedSections);
+                            if (newSet.has(title)) newSet.delete(title); else newSet.add(title);
+                            setCollapsedSections(newSet);
+                        },
+                        className: 'w-full text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center justify-between px-2 hover:text-slate-600 transition-colors'
+                    },
+                        React.createElement('span', { className: 'flex items-center gap-2' }, icon, title),
+                        isCollapsed ? React.createElement(Lucide.ChevronRight, { className: 'w-3 h-3' }) : React.createElement(Lucide.ChevronDown, { className: 'w-3 h-3' })
+                    ),
+                    !isCollapsed && React.createElement('div', { className: 'space-y-1' },
+                        Array.from(tags).sort().map(tag => {
+                            const count = conversations.filter(c => c.tags.includes(tag)).length;
+                            const cleanName = tag.split(': ')[1];
+                            const isActive = activeFilter === tag;
+                            return React.createElement('button', {
+                                key: tag,
+                                onClick: () => setActiveFilter(isActive ? null : tag),
+                                className: cn('w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-colors', isActive ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-600 hover:bg-slate-100')
+                            },
+                                React.createElement('span', { className: 'truncate' }, cleanName),
+                                React.createElement('span', { className: cn('text-xs px-2 py-0.5 rounded-full', isActive ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-500') }, count)
+                            );
+                        })
+                    )
+                );
+            };
+
+            const renderConversationCard = (conv) => React.createElement('div', {
+                key: conv.id,
+                onClick: () => onSelect(conv.id),
+                className: cn('bg-white rounded-xl border p-4 hover:shadow-lg transition-all cursor-pointer flex flex-col relative group', selectedIds.has(conv.id) ? 'border-indigo-500 ring-1 ring-indigo-500 bg-indigo-50' : 'border-slate-200 hover:border-indigo-300')
+            },
+                React.createElement('div', {
+                    onClick: (e) => toggleSelect(conv.id, e),
+                    className: cn('absolute top-3 right-3 z-10 p-1 rounded hover:bg-black/5', selectedIds.has(conv.id) ? 'text-indigo-600' : 'text-slate-300')
+                }, selectedIds.has(conv.id) ? React.createElement(Lucide.CheckSquare, { className: 'w-5 h-5 fill-indigo-100' }) : React.createElement('div', { className: 'w-5 h-5 border-2 border-slate-300 rounded hover:border-indigo-400' })),
+                React.createElement('div', { className: 'flex justify-between items-start mb-2 pr-8' },
+                    React.createElement('div', { className: 'flex gap-1' },
+                        React.createElement('div', { className: cn('w-2 h-2 rounded-full mt-1.5', conv.analysis?.sentiment === 'Positive' ? 'bg-emerald-500' : conv.analysis?.sentiment === 'Negative' ? 'bg-red-500' : 'bg-slate-300') }),
+                        React.createElement('h4', { className: 'font-semibold text-slate-800 line-clamp-1 text-sm' }, conv.title)
+                    )
+                ),
+                React.createElement('p', { className: 'text-xs text-slate-500 line-clamp-2 mb-3 flex-1 h-8' }, conv.messages[conv.messages.length - 1]?.content),
+                React.createElement('div', { className: 'flex items-center justify-between border-t border-slate-200/50 pt-3 mt-auto' },
+                    React.createElement('div', { className: 'flex items-center gap-2 text-xs text-slate-400' }, React.createElement(Lucide.Clock, { className: 'w-3 h-3' }), new Date(conv.createdAt).toLocaleDateString()),
+                    React.createElement('div', { className: 'flex items-center gap-2' },
+                        React.createElement('span', { className: 'text-[10px] text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded' }, conv.analysis?.promptType || 'Chat'),
+                        React.createElement('div', { className: 'flex items-center gap-1 text-[10px] bg-slate-100 px-2 py-1 rounded text-slate-600' }, React.createElement(Lucide.BarChart3, { className: 'w-3 h-3' }), conv.analysis?.importanceScore || 0)
+                    )
+                )
+            );
+
+            return React.createElement('div', { className: 'flex-1 flex h-full bg-slate-50 overflow-hidden relative' },
+                selectedIds.size > 0 && React.createElement('div', { className: 'absolute bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-4 bg-slate-900 text-white px-6 py-3 rounded-2xl shadow-2xl animate-in slide-in-from-bottom-5' },
+                    React.createElement('span', { className: 'text-sm font-semibold' }, `${selectedIds.size} selected`),
+                    React.createElement('div', { className: 'h-4 w-px bg-slate-700' }),
+                    React.createElement('button', { onClick: handleBulkExport, className: 'flex items-center gap-2 text-sm font-medium hover:text-indigo-400 transition-colors' }, React.createElement(Lucide.Download, { className: 'w-4 h-4' }), 'Export to TXT'),
+                    React.createElement('button', { onClick: () => setSelectedIds(new Set()), className: 'text-slate-500 hover:text-white transition-colors' }, 'Clear')
+                ),
+                React.createElement('div', { className: 'hidden md:flex w-64 bg-white border-r border-slate-200 flex-col overflow-y-auto shrink-0 custom-scrollbar' },
+                    React.createElement('div', { className: 'p-5 border-b border-slate-100 sticky top-0 bg-white z-10' },
+                        React.createElement('h2', { className: 'text-lg font-bold text-slate-800 flex items-center gap-2' }, React.createElement(Lucide.Layers, { className: 'w-5 h-5 text-indigo-600' }), 'Categories'),
+                        React.createElement('p', { className: 'text-xs text-slate-500 mt-1' }, 'Expand groups to filter.')
+                    ),
+                    React.createElement('div', { className: 'p-4' },
+                        renderCategorySection('Feedback', React.createElement(Lucide.ThumbsUp, { className: 'w-3 h-3 text-emerald-600' }), categories['Feedback']),
+                        renderCategorySection('Modes', React.createElement(Lucide.Mic, { className: 'w-3 h-3' }), categories['Mode']),
+                        renderCategorySection('Features', React.createElement(Lucide.Cpu, { className: 'w-3 h-3' }), categories['Feature']),
+                        renderCategorySection('Topics', React.createElement(Lucide.BookOpen, { className: 'w-3 h-3' }), categories['Topic']),
+                        renderCategorySection('Types', React.createElement(Lucide.Tag, { className: 'w-3 h-3' }), categories['Type']),
+                        renderCategorySection('Tone', React.createElement(Lucide.AlertCircle, { className: 'w-3 h-3' }), categories['Tone']),
+                        renderCategorySection('Models', React.createElement(Lucide.Code, { className: 'w-3 h-3' }), categories['Model']),
+                        renderCategorySection('Length', React.createElement(Lucide.Clock, { className: 'w-3 h-3' }), categories['Length'])
+                    )
+                ),
+                React.createElement('div', { className: 'flex-1 flex flex-col min-w-0' },
+                    React.createElement('div', { className: 'p-4 border-b border-slate-200 bg-white flex justify-between items-center shadow-sm sticky top-0 z-20' },
+                        React.createElement('div', { className: 'flex items-center gap-2 overflow-hidden' },
+                            activeFilter ? React.createElement('span', { className: 'px-3 py-1 bg-indigo-100 text-indigo-700 rounded-full text-sm font-semibold flex items-center gap-2 whitespace-nowrap' }, activeFilter.split(': ')[1], React.createElement('button', { onClick: () => setActiveFilter(null), className: 'hover:text-indigo-900' }, '×')) : React.createElement('span', { className: 'text-sm text-slate-500 font-medium whitespace-nowrap' }, 'All Conversations')
+                        ),
+                        React.createElement('div', { className: 'flex items-center gap-2 shrink-0' },
+                            React.createElement('div', { className: 'flex bg-slate-100 p-0.5 rounded-lg mr-2' },
+                                React.createElement('button', { onClick: () => setViewMode('grid'), className: cn('p-1.5 rounded-md transition-colors', viewMode === 'grid' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700') }, React.createElement(Lucide.LayoutGrid, { className: 'w-4 h-4' })),
+                                React.createElement('button', { onClick: () => setViewMode('grouped'), className: cn('p-1.5 rounded-md transition-colors', viewMode === 'grouped' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700') }, React.createElement(Lucide.List, { className: 'w-4 h-4' }))
+                            ),
+                            React.createElement('select', {
+                                className: 'bg-slate-50 border border-slate-200 text-xs rounded-lg py-1.5 px-2 font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500',
+                                value: sortMode,
+                                onChange: (e) => setSortMode(e.target.value)
+                            },
+                                React.createElement('option', { value: 'score' }, 'Sort: Importance'),
+                                React.createElement('option', { value: 'date' }, 'Sort: Date'),
+                                React.createElement('option', { value: 'length' }, 'Sort: Length')
+                            )
+                        )
+                    ),
+                    React.createElement('div', { className: 'flex-1 overflow-y-auto p-6 bg-slate-50/50 custom-scrollbar' },
+                        viewMode === 'grid' ? React.createElement('div', { className: 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-4' }, filteredConversations.map(renderConversationCard)) : React.createElement('div', { className: 'space-y-8 max-w-4xl mx-auto' },
+                            (() => {
+                                const groups = {};
+                                filteredConversations.forEach(c => {
+                                    const topicTag = c.tags.find(t => t.startsWith('Topic: '));
+                                    const key = topicTag ? topicTag.split(': ')[1] : 'Uncategorized';
+                                    if (!groups[key]) groups[key] = [];
+                                    groups[key].push(c);
+                                });
+                                return Object.entries(groups).map(([groupName, groupConvs]) => React.createElement('div', { key: groupName, className: 'bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm' },
+                                    React.createElement('div', { className: 'px-6 py-4 bg-slate-50 border-b border-slate-100 flex justify-between items-center' },
+                                        React.createElement('h3', { className: 'font-bold text-slate-700 flex items-center gap-2' }, React.createElement(Lucide.BookOpen, { className: 'w-4 h-4 text-indigo-500' }), groupName),
+                                        React.createElement('span', { className: 'text-xs font-medium text-slate-400' }, `${groupConvs.length} threads`)
+                                    ),
+                                    React.createElement('div', { className: 'divide-y divide-slate-100' },
+                                        groupConvs.map(c => React.createElement('div', {
+                                            key: c.id,
+                                            onClick: () => onSelect(c.id),
+                                            className: 'p-4 hover:bg-slate-50 cursor-pointer flex items-center justify-between group transition-colors'
+                                        },
+                                            React.createElement('div', { className: 'flex items-center gap-3 overflow-hidden' },
+                                                React.createElement('div', { onClick: (e) => toggleSelect(c.id, e), className: 'p-1 hover:bg-slate-200 rounded text-slate-300' }, selectedIds.has(c.id) ? React.createElement(Lucide.CheckSquare, { className: 'w-4 h-4 text-indigo-600' }) : React.createElement('div', { className: 'w-4 h-4 border border-slate-300 rounded' })),
+                                                React.createElement('div', { className: 'min-w-0' },
+                                                    React.createElement('h4', { className: 'text-sm font-semibold text-slate-800 truncate group-hover:text-indigo-600 transition-colors' }, c.title),
+                                                    React.createElement('p', { className: 'text-xs text-slate-500 truncate' }, `${c.messages[0]?.content.substring(0, 80)}...`)
+                                                )
+                                            ),
+                                            React.createElement('div', { className: 'flex items-center gap-4 text-xs text-slate-400 shrink-0 ml-4' },
+                                                React.createElement('span', null, new Date(c.createdAt).toLocaleDateString()),
+                                                React.createElement('span', { className: cn('px-2 py-1 rounded bg-slate-100', c.analysis?.importanceScore > 70 && 'text-amber-600 bg-amber-50') }, c.analysis?.importanceScore)
+                                            )
+                                        ))
+                                    )
+                                ));
+                            })()
+                        ),
+                        filteredConversations.length === 0 && React.createElement('div', { className: 'flex flex-col items-center justify-center h-64 text-slate-400' }, React.createElement(Lucide.Tag, { className: 'w-12 h-12 mb-3 opacity-20' }), React.createElement('p', null, 'No conversations match this filter.'))
+                    )
+                ),
+                React.createElement('div', { className: 'hidden lg:flex w-72 bg-white border-l border-slate-200 flex-col overflow-y-auto shrink-0 custom-scrollbar' },
+                    React.createElement('div', { className: 'p-5 border-b border-slate-100 sticky top-0 bg-white z-10' },
+                        React.createElement('h2', { className: 'text-lg font-bold text-slate-800 flex items-center gap-2' }, React.createElement(Lucide.MessageSquare, { className: 'w-5 h-5 text-indigo-600' }), 'Vocabulary'),
+                        React.createElement('p', { className: 'text-xs text-slate-500 mt-1' }, 'Top 100 most used words.')
+                    ),
+                    React.createElement('div', { className: 'p-4' },
+                        React.createElement('div', { className: 'flex bg-slate-100 p-1 rounded-lg mb-4' },
+                            ['combined', 'user', 'assistant'].map(src => React.createElement('button', {
+                                key: src,
+                                onClick: () => setWordCloudSource(src),
+                                className: cn('flex-1 py-1.5 text-xs font-medium rounded-md transition-all flex items-center justify-center gap-1', wordCloudSource === src ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700')
+                            }, src === 'user' ? React.createElement(Lucide.User, { className: 'w-3 h-3' }) : src === 'assistant' ? React.createElement(Lucide.Bot, { className: 'w-3 h-3' }) : null, src.charAt(0).toUpperCase() + src.slice(1)))
+                        ),
+                        React.createElement('div', { className: 'flex flex-wrap gap-1.5' },
+                            topWords.map(([word, count]) => React.createElement('button', {
+                                key: word,
+                                onClick: () => onSearch(word),
+                                className: 'text-xs bg-slate-50 text-slate-700 px-2 py-1 rounded-md border border-slate-200 hover:bg-indigo-50 hover:text-indigo-700 hover:border-indigo-200 transition-colors cursor-pointer group flex items-center gap-1',
+                                title: `Search for "${word}" (${count} occurrences)`
+                            }, word, React.createElement('span', { className: 'text-[10px] text-slate-400 group-hover:text-indigo-400' }, count))),
+                            topWords.length === 0 && React.createElement('span', { className: 'text-xs text-slate-400 italic px-2' }, 'No data available')
+                        )
+                    )
+                )
+            );
+        };
+        const LibraryView = ({ conversations, folders, onSelect, onMoveToFolder, onToggleStar, onToggleHidden, onMagicSort }) => {
+            const [activeFilter, setActiveFilter] = useState('all');
+            const [sortOrder, setSortOrder] = useState('newest');
+            const [selectedFolderId, setSelectedFolderId] = useState(null);
+
+            const filtered = useMemo(() => {
+                let list = conversations;
+                if (selectedFolderId) {
+                    list = list.filter(c => c.folderId === selectedFolderId);
+                } else if (activeFilter === 'unfiled') {
+                    list = list.filter(c => !c.folderId);
+                }
+                
+                if (activeFilter === 'liked') list = list.filter(c => c.isStarred);
+                if (activeFilter === 'hidden') list = list.filter(c => c.isHidden);
+                if (activeFilter === 'code') list = list.filter(c => c.analysis.codeBlockCount > 0);
+
+                return list.sort((a, b) => {
+                    if (sortOrder === 'newest') return b.createdAt - a.createdAt;
+                    if (sortOrder === 'oldest') return a.createdAt - b.createdAt;
+                    if (sortOrder === 'importance') return b.analysis.importanceScore - a.analysis.importanceScore;
+                    return a.title.localeCompare(b.title);
+                });
+            }, [conversations, activeFilter, sortOrder, selectedFolderId]);
+
+            return React.createElement('div', { className: 'flex-1 flex flex-col h-full bg-slate-50 overflow-hidden' },
+                React.createElement('div', { className: 'p-4 md:p-6 border-b border-slate-200 bg-white flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shadow-sm' },
+                    React.createElement('div', null,
+                        React.createElement('h2', { className: 'text-xl md:text-2xl font-bold text-slate-800' }, selectedFolderId ? folders.find(f => f.id === selectedFolderId)?.name : 'Library'),
+                        React.createElement('p', { className: 'text-slate-500 text-sm' }, `Showing ${filtered.length} conversations`)
+                    ),
+                    React.createElement('div', { className: 'flex items-center gap-2 w-full md:w-auto overflow-x-auto pb-2 md:pb-0' },
+                        React.createElement('button', {
+                            onClick: onMagicSort,
+                            className: 'flex items-center gap-2 px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-700 transition-colors whitespace-nowrap'
+                        }, React.createElement(Lucide.Zap, { className: 'w-4 h-4' }), 'Magic Sort'),
+                        React.createElement('select', {
+                            className: 'bg-white border border-slate-200 text-sm rounded-lg py-1.5 px-2 text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500',
+                            value: activeFilter,
+                            onChange: (e) => setActiveFilter(e.target.value)
+                        },
+                            React.createElement('option', { value: 'all' }, 'All Chats'),
+                            React.createElement('option', { value: 'unfiled' }, 'Unfiled'),
+                            React.createElement('option', { value: 'liked' }, 'Starred'),
+                            React.createElement('option', { value: 'code' }, 'With Code'),
+                            React.createElement('option', { value: 'hidden' }, 'Hidden')
+                        )
+                    )
+                ),
+                React.createElement('div', { className: 'flex-1 overflow-y-auto p-4 md:p-6 custom-scrollbar' },
+                    filtered.length === 0 ? React.createElement('div', { className: 'flex flex-col items-center justify-center h-64 text-slate-400 opacity-50' },
+                        React.createElement(Lucide.Database, { className: 'w-16 h-16 mb-4' }),
+                        React.createElement('p', { className: 'text-lg font-medium' }, 'No conversations found.')
+                    ) : React.createElement('div', { className: 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4' },
+                        filtered.map(conv => React.createElement('div', {
+                            key: conv.id,
+                            onClick: () => onSelect(conv.id),
+                            className: cn('group bg-white rounded-xl border border-slate-200 p-4 hover:shadow-lg hover:border-indigo-300 transition-all cursor-pointer flex flex-col h-48 relative overflow-hidden', conv.isHidden && 'opacity-60 grayscale-[0.5]')
+                        },
+                            React.createElement('div', { className: 'flex justify-between items-start mb-2' },
+                                React.createElement('div', { className: 'flex items-center gap-2' },
+                                    React.createElement('div', { className: cn('w-2 h-2 rounded-full', conv.analysis.sentiment === 'Positive' ? 'bg-emerald-500' : conv.analysis.sentiment === 'Negative' ? 'bg-red-500' : 'bg-slate-300') }),
+                                    React.createElement('span', { className: 'text-[10px] font-bold text-slate-400 uppercase tracking-wider' }, conv.analysis.topic)
+                                ),
+                                React.createElement('button', {
+                                    onClick: (e) => { e.stopPropagation(); onToggleStar(conv.id); },
+                                    className: cn('p-1 rounded transition-colors', conv.isStarred ? 'text-amber-500' : 'text-slate-300 hover:text-amber-500')
+                                }, React.createElement(Lucide.Star, { className: cn('w-4 h-4', conv.isStarred && 'fill-current') }))
+                            ),
+                            React.createElement('h3', { className: 'font-semibold text-slate-800 line-clamp-2 mb-2 group-hover:text-indigo-600 transition-colors' }, conv.title),
+                            React.createElement('p', { className: 'text-xs text-slate-500 line-clamp-3 flex-1' }, conv.messages[conv.messages.length - 1]?.content || 'Empty'),
+                            React.createElement('div', { className: 'flex items-center justify-between border-t border-slate-100 pt-3 mt-auto' },
+                                React.createElement('span', { className: 'text-[10px] text-slate-400' }, new Date(conv.createdAt).toLocaleDateString()),
+                                React.createElement('div', { className: 'flex items-center gap-1' },
+                                    conv.analysis.codeBlockCount > 0 && React.createElement(Lucide.Code, { className: 'w-3 h-3 text-indigo-400' }),
+                                    React.createElement('span', { className: 'text-[10px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-500' }, `${conv.messages.length} msgs`)
+                                )
+                            )
+                        ))
+                    )
+                )
+            );
+        };
+
+        /**
+         * COMPONENTS: ChatViewer
+         */
+        const ChatViewer = ({ conversation, onClose, onSearch, onToggleStar, onToggleHidden }) => {
+            const [docMode, setDocMode] = useState(false);
+            const [selectedMsgs, setSelectedMsgs] = useState(new Set());
+
+            const toggleMsg = (id) => {
+                const newSet = new Set(selectedMsgs);
+                if (newSet.has(id)) newSet.delete(id);
+                else newSet.add(id);
+                setSelectedMsgs(newSet);
+            };
+
+            const handleExportDoc = (format) => {
+                const msgs = conversation.messages.filter(m => selectedMsgs.has(m.id));
+                if (msgs.length === 0) return;
+                
+                let content = `# ${conversation.title}\n\n`;
+                msgs.forEach(m => {
+                    content += `### ${m.role.toUpperCase()}\n${m.content}\n\n---\n\n`;
+                });
+
+                const blob = new Blob([content], { type: format === 'md' ? 'text/markdown' : 'text/html' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `${conversation.title.replace(/\s+/g, '_')}_export.${format}`;
+                a.click();
+            };
+
+            return React.createElement('div', { className: 'fixed inset-0 z-50 flex flex-col bg-white animate-in slide-in-from-right-full duration-300' },
+                React.createElement('div', { className: 'p-4 border-b border-slate-200 flex justify-between items-center bg-white sticky top-0 z-10 shadow-sm' },
+                    React.createElement('div', { className: 'flex items-center gap-4' },
+                        React.createElement('button', { onClick: onClose, className: 'p-2 hover:bg-slate-100 rounded-full transition-colors' }, React.createElement(Lucide.ArrowLeft, { className: 'w-5 h-5' })),
+                        React.createElement('div', null,
+                            React.createElement('h2', { className: 'font-bold text-slate-800 line-clamp-1' }, conversation.title),
+                            React.createElement('p', { className: 'text-xs text-slate-500' }, `${conversation.messages.length} messages • ${conversation.analysis.topic}`)
+                        )
+                    ),
+                    React.createElement('div', { className: 'flex items-center gap-2' },
+                        React.createElement('button', {
+                            onClick: () => setDocMode(!docMode),
+                            className: cn('px-3 py-1.5 rounded-lg text-sm font-bold transition-all', docMode ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200')
+                        }, React.createElement(Lucide.FileText, { className: 'w-4 h-4 inline mr-2' }), 'Doc Mode'),
+                        React.createElement('button', {
+                            onClick: () => onToggleStar(conversation.id),
+                            className: cn('p-2 rounded-lg transition-colors', conversation.isStarred ? 'text-amber-500 bg-amber-50' : 'text-slate-400 hover:bg-slate-100')
+                        }, React.createElement(Lucide.Star, { className: cn('w-5 h-5', conversation.isStarred && 'fill-current') })),
+                        React.createElement('button', { onClick: onClose, className: 'p-2 hover:bg-slate-100 rounded-full' }, React.createElement(Lucide.X, { className: 'w-5 h-5' }))
+                    )
+                ),
+                docMode && React.createElement('div', { className: 'bg-indigo-50 p-3 border-b border-indigo-100 flex justify-between items-center px-6 animate-in slide-in-from-top-2' },
+                    React.createElement('p', { className: 'text-xs font-bold text-indigo-700' }, `${selectedMsgs.size} messages selected for export`),
+                    React.createElement('div', { className: 'flex gap-2' },
+                        React.createElement('button', { onClick: () => handleExportDoc('md'), className: 'text-xs bg-white border border-indigo-200 text-indigo-600 px-3 py-1 rounded font-bold hover:bg-indigo-100' }, 'Export MD'),
+                        React.createElement('button', { onClick: () => setSelectedMsgs(new Set(conversation.messages.map(m => m.id))), className: 'text-xs text-indigo-400 hover:text-indigo-600' }, 'Select All')
+                    )
+                ),
+                React.createElement('div', { className: 'flex-1 overflow-y-auto p-4 md:p-8 space-y-6 bg-slate-50 custom-scrollbar' },
+                    conversation.messages.map(msg => React.createElement('div', {
+                        key: msg.id,
+                        onClick: () => docMode && toggleMsg(msg.id),
+                        className: cn('flex flex-col max-w-4xl mx-auto transition-all', docMode && 'cursor-pointer hover:opacity-80', docMode && selectedMsgs.has(msg.id) && 'ring-2 ring-indigo-500 rounded-2xl p-2 bg-indigo-50/50')
+                    },
+                        React.createElement('div', { className: cn('flex items-center gap-2 mb-2', msg.role === 'user' ? 'justify-end' : 'justify-start') },
+                            msg.role === 'assistant' && React.createElement('div', { className: 'w-6 h-6 bg-teal-500 rounded flex items-center justify-center text-white' }, React.createElement(Lucide.Bot, { className: 'w-4 h-4' })),
+                            React.createElement('span', { className: 'text-[10px] font-bold text-slate-400 uppercase tracking-widest' }, msg.role),
+                            msg.role === 'user' && React.createElement('div', { className: 'w-6 h-6 bg-indigo-500 rounded flex items-center justify-center text-white' }, React.createElement(Lucide.User, { className: 'w-4 h-4' }))
+                        ),
+                        React.createElement('div', { className: cn('p-4 rounded-2xl shadow-sm text-sm leading-relaxed whitespace-pre-wrap', msg.role === 'user' ? 'bg-slate-800 text-white ml-12 rounded-tr-none' : 'bg-white border border-slate-200 mr-12 rounded-tl-none') },
+                            React.createElement(HyperlinkedText, { content: msg.content, onSearch: onSearch })
+                        )
+                    ))
+                )
+            );
+        };
+
+        /**
+         * STORAGE (IndexedDB for large data)
+         */
+        const dbStorage = {
+            dbName: 'ChatKeeperDB',
+            storeName: 'data',
+            key: 'chatkeeper_data',
+            
+            async init() {
+                return new Promise((resolve, reject) => {
+                    const request = indexedDB.open(this.dbName, 1);
+                    request.onupgradeneeded = (e) => {
+                        const db = e.target.result;
+                        if (!db.objectStoreNames.contains(this.storeName)) {
+                            db.createObjectStore(this.storeName);
+                        }
+                    };
+                    request.onsuccess = (e) => resolve(e.target.result);
+                    request.onerror = (e) => reject(e.target.error);
+                });
+            },
+
+            async get() {
+                const db = await this.init();
+                return new Promise((resolve, reject) => {
+                    const transaction = db.transaction(this.storeName, 'readonly');
+                    const store = transaction.objectStore(this.storeName);
+                    const request = store.get(this.key);
+                    request.onsuccess = () => resolve(request.result);
+                    request.onerror = () => reject(request.error);
+                });
+            },
+
+            async set(value) {
+                const db = await this.init();
+                return new Promise((resolve, reject) => {
+                    const transaction = db.transaction(this.storeName, 'readwrite');
+                    const store = transaction.objectStore(this.storeName);
+                    const request = store.put(value, this.key);
+                    request.onsuccess = () => resolve();
+                    request.onerror = () => reject(request.error);
+                });
+            }
+        };
+
+        /**
+         * MAIN APP
+         */
+        const App = () => {
+            const [isActivated, setIsActivated] = useState(false);
+            const [conversations, setConversations] = useState([]);
+            const [folders, setFolders] = useState([]);
+            const [activeView, setActiveView] = useState('library');
+            const [selectedChatId, setSelectedChatId] = useState(null);
+            const [searchConfig, setSearchConfig] = useState({ term: '', isFuzzy: false, includeHidden: false, sortOrder: 'newest' });
+            const [isImporting, setIsImporting] = useState(false);
+            const [importProgress, setImportProgress] = useState(0);
+            const [isLoaded, setIsLoaded] = useState(false);
+
+            useEffect(() => {
+                const loadData = async () => {
+                    setIsActivated(checkLicense());
+                    
+                    // Try IndexedDB first
+                    let data = await dbStorage.get();
+                    
+                    // Fallback to localStorage for migration
+                    if (!data) {
+                        const saved = localStorage.getItem('chatkeeper_data');
+                        if (saved) {
+                            try {
+                                data = JSON.parse(saved);
+                                // Migrate to IndexedDB
+                                await dbStorage.set(data);
+                                // Clear localStorage to free up space
+                                localStorage.removeItem('chatkeeper_data');
+                            } catch (e) {
+                                console.error("Failed to parse localStorage data", e);
+                            }
+                        }
+                    }
+
+                    if (data) {
+                        setConversations(data.conversations || []);
+                        setFolders(data.folders || []);
+                    }
+                    setIsLoaded(true);
+                };
+                loadData();
+            }, []);
+
+            useEffect(() => {
+                if (!isLoaded) return;
+                const saveData = async () => {
+                    try {
+                        await dbStorage.set({ conversations, folders });
+                    } catch (e) {
+                        console.error("Failed to save to IndexedDB", e);
+                    }
+                };
+                saveData();
+            }, [conversations, folders, isLoaded]);
+
+            const handleFileUpload = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                
+                const reader = new FileReader();
+                reader.onload = async (event) => {
+                    try {
+                        setIsImporting(true);
+                        const raw = JSON.parse(event.target.result);
+                        const parsed = [];
+                        const total = raw.length;
+                        
+                        for (let i = 0; i < total; i++) {
+                            parsed.push(parseConversation(raw[i]));
+                            if (i % 50 === 0) {
+                                setImportProgress(Math.round((i / total) * 100));
+                                await new Promise(r => setTimeout(r, 0));
+                            }
+                        }
+                        
+                        setConversations(parsed);
+                        setIsImporting(false);
+                        setImportProgress(0);
+                    } catch (err) {
+                        alert('Error parsing file: ' + err.message);
+                        setIsImporting(false);
+                    }
+                };
+                reader.readAsText(file);
+            };
+
+            const onToggleStar = (id) => {
+                setConversations(prev => prev.map(c => c.id === id ? { ...c, isStarred: !c.isStarred } : c));
+            };
+
+            const onToggleHidden = (id) => {
+                setConversations(prev => prev.map(c => c.id === id ? { ...c, isHidden: !c.isHidden } : c));
+            };
+
+            const onMagicSort = () => {
+                const newFolders = [...folders];
+                const updatedConvs = conversations.map(c => {
+                    if (c.folderId) return c;
+                    const topic = c.analysis.topic;
+                    let folder = newFolders.find(f => f.name === topic);
+                    if (!folder) {
+                        folder = { id: Math.random().toString(36).substr(2, 9), name: topic };
+                        newFolders.push(folder);
+                    }
+                    return { ...c, folderId: folder.id };
+                });
+                setFolders(newFolders);
+                setConversations(updatedConvs);
+                alert('Magic Sort Complete! Organized chats by topic.');
+            };
+
+            if (!isActivated) {
+                return React.createElement('div', { className: 'min-h-screen bg-slate-900 flex items-center justify-center p-4' },
+                    React.createElement('div', { className: 'bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden p-8 text-center' },
+                        React.createElement(Lucide.Lock, { className: 'w-16 h-16 mx-auto mb-4 text-indigo-600' }),
+                        React.createElement('h1', { className: 'text-2xl font-bold mb-4' }, 'ChatKeeper Activation'),
+                        React.createElement('p', { className: 'text-slate-500 mb-6' }, 'Enter your license key to unlock your library.'),
+                        React.createElement('input', {
+                            type: 'text',
+                            placeholder: 'XXXX-XXXX-XXXX-XXXX',
+                            className: 'w-full p-3 border border-slate-200 rounded-xl mb-4 font-mono text-center',
+                            onKeyDown: async (e) => {
+                                if (e.key === 'Enter') {
+                                    const res = await activateLicense(e.target.value);
+                                    if (res.success) setIsActivated(true);
+                                    else alert(res.error);
+                                }
+                            }
+                        }),
+                        React.createElement('p', { className: 'text-xs text-slate-400' }, 'Use CK-FREE-2026 for trial access.')
+                    )
+                );
+            }
+
+            return React.createElement('div', { className: 'flex h-screen bg-slate-50 overflow-hidden' },
+                /* Sidebar */
+                React.createElement('div', { className: 'w-20 md:w-64 bg-slate-900 text-slate-400 flex flex-col shrink-0' },
+                    React.createElement('div', { className: 'p-4 md:p-6 border-b border-slate-800 flex items-center gap-3' },
+                        React.createElement('div', { className: 'w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white' }, React.createElement(Lucide.Zap, { className: 'w-5 h-5' })),
+                        React.createElement('h1', { className: 'hidden md:block font-bold text-white text-lg' }, 'ChatKeeper')
+                    ),
+                    React.createElement('nav', { className: 'flex-1 p-4 space-y-2 overflow-y-auto custom-scrollbar' },
+                        [
+                            { id: 'library', icon: Lucide.LayoutGrid, label: 'Library' },
+                            { id: 'insights', icon: Lucide.BarChart3, label: 'Insights' },
+                            { id: 'collections', icon: Lucide.Star, label: 'Collections' },
+                            { id: 'prompts', icon: Lucide.Terminal, label: 'Prompts' }
+                        ].map(item => React.createElement('button', {
+                            key: item.id,
+                            onClick: () => setActiveView(item.id),
+                            className: cn('w-full flex items-center gap-3 p-3 rounded-xl transition-all', activeView === item.id ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/20' : 'hover:bg-slate-800 hover:text-white')
+                        }, React.createElement(item.icon, { className: 'w-5 h-5' }), React.createElement('span', { className: 'hidden md:block font-medium' }, item.label)))
+                    ),
+                    React.createElement('div', { className: 'p-4 border-t border-slate-800' },
+                        React.createElement('label', { className: 'w-full flex items-center gap-3 p-3 rounded-xl hover:bg-slate-800 cursor-pointer transition-colors' },
+                            React.createElement(Lucide.Upload, { className: 'w-5 h-5' }),
+                            React.createElement('span', { className: 'hidden md:block font-medium' }, 'Import JSON'),
+                            React.createElement('input', { type: 'file', className: 'hidden', accept: '.json', onChange: handleFileUpload })
+                        )
+                    )
+                ),
+
+                /* Main Content */
+                React.createElement('div', { className: 'flex-1 flex flex-col min-w-0' },
+                    React.createElement(GlobalSearchBar, {
+                        config: searchConfig,
+                        onChange: (updates) => {
+                            setSearchConfig(updates);
+                            if (updates.term) setActiveView('search');
+                        }
+                    }),
+                    React.createElement('div', { className: 'flex-1 overflow-hidden' },
+                        activeView === 'library' && React.createElement(LibraryView, {
+                            conversations, folders, onSelect: setSelectedChatId, onToggleStar, onToggleHidden, onMagicSort
+                        }),
+                        activeView === 'insights' && React.createElement(InsightsView, {
+                            conversations, onSelect: setSelectedChatId, onSearch: (term) => { setSearchConfig({ ...searchConfig, term }); setActiveView('search'); }
+                        }),
+                        activeView === 'collections' && React.createElement(CollectionsView, {
+                            conversations, onSelect: setSelectedChatId, onToggleStar
+                        }),
+                        activeView === 'prompts' && React.createElement(PromptsView, {
+                            conversations, onSelect: setSelectedChatId
+                        }),
+                        activeView === 'search' && React.createElement(SearchView, {
+                            conversations, onSelect: setSelectedChatId, config: searchConfig, onToggleStar, onToggleHidden
+                        })
+                    )
+                ),
+
+                /* Modals */
+                selectedChatId && React.createElement(ChatViewer, {
+                    conversation: conversations.find(c => c.id === selectedChatId),
+                    onClose: () => setSelectedChatId(null),
+                    onSearch: (term) => setSearchConfig({ ...searchConfig, term }),
+                    onToggleStar,
+                    onToggleHidden
+                }),
+
+                isImporting && React.createElement('div', { className: 'fixed inset-0 z-[100] bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-6' },
+                    React.createElement('div', { className: 'bg-white rounded-2xl p-8 w-full max-w-md text-center shadow-2xl' },
+                        React.createElement(Lucide.Loader2, { className: 'w-12 h-12 mx-auto mb-4 text-indigo-600 animate-spin' }),
+                        React.createElement('h3', { className: 'text-xl font-bold mb-2' }, 'Analyzing Conversations...'),
+                        React.createElement('p', { className: 'text-slate-500 mb-6' }, 'Running NLP heuristics and indexing content.'),
+                        React.createElement('div', { className: 'w-full bg-slate-100 h-2 rounded-full overflow-hidden' },
+                            React.createElement('div', { className: 'bg-indigo-600 h-full transition-all duration-300', style: { width: `${importProgress}%` } })
+                        ),
+                        React.createElement('p', { className: 'mt-2 text-xs font-bold text-slate-400' }, `${importProgress}% Complete`)
+                    )
+                )
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(React.createElement(App));
+    </script>
+</body>
+</html>
